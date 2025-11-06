@@ -149,11 +149,10 @@ public class DeliverySystemGUI {
     // Métodos para abrir las ventanas específicas
     private void abrirVentanaConfiguracion() {
         new CampusModeSelectionDialog(mainFrame);
-        //new VentanaConfiguracion(mainFrame);
     }
 
     private void openOrdersWindow() {
-        //new OrdersGUI(mainFrame);
+        new PedidosGUI(mainFrame);
     }
 
     private void openVehiclesWindow() {

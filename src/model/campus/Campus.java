@@ -16,19 +16,33 @@ public class Campus {
         this.centroPrincipal = null;
     }
 
-    public Campus(boolean configuracionPorDefecto) {
-        this();
-        if (configuracionPorDefecto) {
-            inicializarCampusEjemplo();
-        }
-    }
-
     public boolean agregarEdificio(Edificio edificio) {
         if (edificio == null || existeEdificio(edificio.getId())) {
             return false;
         }
         edificios.add(edificio);
         return true;
+    }
+
+    public boolean eliminarRuta(String rutaId) {
+        if (rutaId == null || rutaId.trim().isEmpty()) {
+            System.err.println("Error: El ID de la ruta no puede ser nulo o vacío");
+            return false;
+        }
+
+        boolean eliminada = rutas.removeIf(ruta -> {
+            boolean coincide = ruta.getId().equals(rutaId);
+            if (coincide) {
+                System.out.println("Ruta eliminada: " + ruta);
+            }
+            return coincide;
+        });
+
+        if (!eliminada) {
+            System.err.println("Error: No se encontró ninguna ruta con ID: " + rutaId);
+        }
+
+        return eliminada;
     }
 
     public boolean agregarEdificio(String id, String nombre, int capacidad, boolean centroCarga) {
@@ -81,30 +95,42 @@ public class Campus {
         return true;
     }
 
-    public boolean agregarRuta(String idOrigen, String idDestino, double distancia) {
-        Edificio origen = getEdificio(idOrigen);
-        Edificio destino = getEdificio(idDestino);
+    public boolean agregarRuta(String origenId, String destinoId, double distancia, double tiempoEstimado) {
+        try {
+            Edificio origen = getEdificio(origenId);
+            Edificio destino = getEdificio(destinoId);
 
-        if (origen == null || destino == null || origen.equals(destino)) {
+            if (origen == null || destino == null) {
+                throw new IllegalArgumentException("Uno o ambos edificios no existen");
+            }
+
+            if (origen.equals(destino)) {
+                throw new IllegalArgumentException("No se puede crear una ruta entre el mismo edificio");
+            }
+
+            // Verificar si ya existe una ruta entre estos edificios
+            if (existeRuta(origenId, destinoId)) {
+                throw new IllegalArgumentException("Ya existe una ruta entre estos edificios");
+            }
+
+            Ruta nuevaRuta = new Ruta(origen, destino, distancia, tiempoEstimado);
+            return rutas.add(nuevaRuta);
+
+        } catch (Exception e) {
+            System.err.println("Error al agregar ruta: " + e.getMessage());
             return false;
         }
+    }
 
-        if (existeRuta(origen, destino)) {
-            return false;
-        }
-
-        Ruta nuevaRuta = new Ruta(origen, destino, distancia);
-        return rutas.add(nuevaRuta);
+    public boolean existeRuta(String origenId, String destinoId) {
+        return rutas.stream().anyMatch(ruta ->
+                (ruta.getOrigen().getId().equals(origenId) && ruta.getDestino().getId().equals(destinoId)) ||
+                        (ruta.getOrigen().getId().equals(destinoId) && ruta.getDestino().getId().equals(origenId))
+        );
     }
 
     public boolean existeRuta(Edificio origen, Edificio destino) {
         return getRuta(origen, destino) != null;
-    }
-
-    public boolean existeRuta(String idOrigen, String idDestino) {
-        Edificio origen = getEdificio(idOrigen);
-        Edificio destino = getEdificio(idDestino);
-        return origen != null && destino != null && existeRuta(origen, destino);
     }
 
     public double getDistancia(Edificio origen, Edificio destino) {
@@ -303,22 +329,6 @@ public class Campus {
         edificios.clear();
         rutas.clear();
         centroPrincipal = null;
-    }
-
-    // NUEVO: Inicializar campus de ejemplo
-    private void inicializarCampusEjemplo() {
-        // Crear edificios
-        agregarEdificio("A", "Edificio de Ciencias", 10, true);
-        agregarEdificio("B", "Edificio de Ingeniería", 8, false);
-        agregarEdificio("C", "Centro Principal", 20, true, true);
-        agregarEdificio("D", "Edificio de Artes", 6, true);
-
-        // Crear rutas
-        agregarRuta("A", "B", 90.0);
-        agregarRuta("B", "C", 100.0);
-        agregarRuta("C", "D", 120.0);
-        agregarRuta("A", "C", 80.0);
-        agregarRuta("A", "D", 200.0);
     }
 
     // NUEVO: Métodos de validación

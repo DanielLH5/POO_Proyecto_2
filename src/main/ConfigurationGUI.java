@@ -1,11 +1,12 @@
 package main;
 
-// ConfigurationGUI.java (versión actualizada)
+// ConfigurationGUI.java (versión completa)
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
 import java.util.List;
 
 import model.campus.Campus;
@@ -122,8 +123,8 @@ public class ConfigurationGUI {
 
         tabbedPane.addTab("Configuración del Modo", createModeConfigurationPanel());
         tabbedPane.addTab("Gestión de Edificios", createBuildingsPanel());
-        //tabbedPane.addTab("Configuración de Rutas", createRoutesPanel());
-        //tabbedPane.addTab("Resumen del Sistema", createSummaryPanel());
+        tabbedPane.addTab("Configuración de Rutas", createRoutesPanel());
+        tabbedPane.addTab("Resumen del Sistema", createSummaryPanel());
 
         configDialog.add(tabbedPane, BorderLayout.CENTER);
     }
@@ -334,7 +335,6 @@ public class ConfigurationGUI {
 
     }
 
-
     private JPanel createBuildingsPanel() {
         JPanel buildingsPanel = new JPanel(new BorderLayout(10, 10));
         buildingsPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
@@ -368,7 +368,6 @@ public class ConfigurationGUI {
         buildingControls.add(capacitySpinner);
         buildingControls.add(addBuildingBtn);
         buildingControls.add(autoGenerateBtn);
-
 
         JPanel tableControls = new JPanel(new FlowLayout());
         JButton refreshTableBtn = new JButton("Actualizar Tabla");
@@ -713,98 +712,506 @@ public class ConfigurationGUI {
         }
     }
 
-    // Los métodos createRoutesPanel(), createSummaryPanel() y demás se mantienen similares
-    // pero adaptados para cada modo...
+    // =====================================================================
+    // MÉTODO createRoutesPanel() - COMPLETADO
+    // =====================================================================
+    private JPanel createRoutesPanel() {
+        JPanel routesPanel = new JPanel(new BorderLayout(10, 10));
+        routesPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
+        // Panel superior con controles
+        JPanel topPanel = new JPanel(new GridLayout(4, 2, 10, 10));
+        topPanel.setBorder(BorderFactory.createTitledBorder("Agregar Nueva Ruta"));
 
-    private String getResumenConfiguracion() {
-        int totalEdificios = campus.getEdificios().size();
-        int centrosCarga = campus.getCentrosCarga().size();
-        int capacidadTotal = campus.getEdificios().stream()
-                .mapToInt(Edificio::getCapacidadVehiculos)
-                .sum();
+        JComboBox<String> origenCombo = new JComboBox<>();
+        JComboBox<String> destinoCombo = new JComboBox<>();
+        JSpinner distanciaSpinner = new JSpinner(new SpinnerNumberModel(100.0, 10.0, 5000.0, 50.0));
+        JSpinner tiempoSpinner = new JSpinner(new SpinnerNumberModel(5.0, 1.0, 120.0, 1.0));
 
-        String centroPrincipalInfo = "Distribuido entre todos los edificios";
-        if (campus.getCentroPrincipal() != null) {
-            centroPrincipalInfo = campus.getCentroPrincipal().getNombre() +
-                    " (" + campus.getCentroPrincipal().getId() + ")";
-        }
+        JButton addRouteBtn = new JButton("Agregar Ruta");
+        JButton autoGenerateRoutesBtn = new JButton("Generar Rutas Automáticamente");
+        JButton refreshRoutesBtn = new JButton("Actualizar Listas");
 
-        return "RESUMEN DE CONFIGURACIÓN:\n\n" +
-                "• Modo: " + getModeTitle() + "\n" +
-                "• Total edificios: " + totalEdificios + "\n" +
-                "• Centros de carga: " + centrosCarga + "\n" +
-                "• Capacidad total: " + capacidadTotal + " vehículos\n" +
-                "• Centro principal: " + centroPrincipalInfo;
-    }
+        topPanel.add(new JLabel("Edificio Origen:"));
+        topPanel.add(origenCombo);
+        topPanel.add(new JLabel("Edificio Destino:"));
+        topPanel.add(destinoCombo);
+        topPanel.add(new JLabel("Distancia (metros):"));
+        topPanel.add(distanciaSpinner);
+        topPanel.add(new JLabel("Tiempo Estimado (minutos):"));
+        topPanel.add(tiempoSpinner);
+        topPanel.add(addRouteBtn);
+        topPanel.add(autoGenerateRoutesBtn);
 
-    private void createFooter() {
-        JPanel footerPanel = new JPanel(new BorderLayout());
-        footerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        footerPanel.setBackground(Color.LIGHT_GRAY);
+        // Panel de controles de tabla
+        JPanel tableControls = new JPanel(new FlowLayout());
+        JButton deleteRouteBtn = new JButton("Eliminar Ruta Seleccionada");
+        JButton clearAllRoutesBtn = new JButton("Eliminar Todas las Rutas");
 
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton saveConfigBtn = new JButton("Guardar Configuración");
-        JButton completeConfigBtn = new JButton("Completar Configuración");
-        JButton changeModeBtn = new JButton("Cambiar Modo");
+        deleteRouteBtn.setBackground(new Color(220, 80, 80));
+        deleteRouteBtn.setForeground(Color.WHITE);
+        clearAllRoutesBtn.setBackground(new Color(180, 60, 60));
+        clearAllRoutesBtn.setForeground(Color.WHITE);
+        deleteRouteBtn.setContentAreaFilled(true);
+        deleteRouteBtn.setOpaque(true);
+        deleteRouteBtn.setBorderPainted(false);
 
-        buttonPanel.add(saveConfigBtn);
-        buttonPanel.add(completeConfigBtn);
-        buttonPanel.add(changeModeBtn);
+        tableControls.add(refreshRoutesBtn);
+        tableControls.add(deleteRouteBtn);
+        tableControls.add(clearAllRoutesBtn);
 
-        changeModeBtn.addActionListener(e -> {
-            configDialog.dispose();
-            new CampusModeSelectionDialog(null);
+        // Tabla de rutas
+        String[] columns = {"Origen", "Destino", "Distancia (m)", "Tiempo (min)", "ID Ruta"};
+        routesModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // Hacer la tabla no editable
+            }
+        };
+        JTable routesTable = new JTable(routesModel);
+        JScrollPane routesScroll = new JScrollPane(routesTable);
+
+        // Método para actualizar combos de edificios
+        Runnable actualizarCombos = () -> {
+            origenCombo.removeAllItems();
+            destinoCombo.removeAllItems();
+
+            for (Edificio edificio : campus.getEdificios()) {
+                origenCombo.addItem(edificio.getId() + " - " + edificio.getNombre());
+                destinoCombo.addItem(edificio.getId() + " - " + edificio.getNombre());
+            }
+        };
+
+        // Método para actualizar tabla de rutas
+        Runnable actualizarTablaRutas = () -> {
+            routesModel.setRowCount(0);
+            for (Ruta ruta : campus.getRutas()) {
+                routesModel.addRow(new Object[]{
+                        ruta.getOrigen().getId(),
+                        ruta.getDestino().getId(),
+                        ruta.getDistancia(),
+                        ruta.getTiempoEstimado(),
+                        ruta.getId()
+                });
+            }
+        };
+
+        // Listeners
+        refreshRoutesBtn.addActionListener(e -> {
+            actualizarCombos.run();
+            actualizarTablaRutas.run();
+            JOptionPane.showMessageDialog(configDialog,
+                    "Listas y tabla actualizadas", "Actualización", JOptionPane.INFORMATION_MESSAGE);
         });
 
-        completeConfigBtn.addActionListener(e -> {
-            if (validateConfiguration()) {
-                int confirm = JOptionPane.showConfirmDialog(configDialog,
-                        getResumenConfiguracion() +
-                                "\n\n¿Desea completar la configuración con estos datos?",
-                        "Confirmar Configuración", JOptionPane.YES_NO_OPTION);
+        addRouteBtn.addActionListener(e -> {
+            if (origenCombo.getSelectedItem() == null || destinoCombo.getSelectedItem() == null) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Debe haber al menos 2 edificios para crear rutas", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-                if (confirm == JOptionPane.YES_OPTION) {
-                    // Guardar el campus en una variable estática o pasarlo de alguna manera
-                    DeliverySystemGUI.campusConfigurado = this.campus; // Ejemplo
+            String origenStr = (String) origenCombo.getSelectedItem();
+            String destinoStr = (String) destinoCombo.getSelectedItem();
 
-                    configDialog.dispose();
+            String origenId = origenStr.split(" - ")[0];
+            String destinoId = destinoStr.split(" - ")[0];
 
-                    JOptionPane.showMessageDialog(null,
-                            "Configuración completada exitosamente!\n\n" +
-                                        "Puedes continuar con el sistema principal.",
-                            "Configuración Exitosa",
-                            JOptionPane.INFORMATION_MESSAGE);
+            if (origenId.equals(destinoId)) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "El origen y destino no pueden ser el mismo edificio", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            double distancia = (Double) distanciaSpinner.getValue();
+            double tiempo = (Double) tiempoSpinner.getValue();
+
+            try {
+                boolean exito = campus.agregarRuta(origenId, destinoId, distancia, tiempo);
+                if (exito) {
+                    actualizarTablaRutas.run();
+                    JOptionPane.showMessageDialog(configDialog,
+                            "Ruta agregada exitosamente", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(configDialog,
+                            "Ya existe una ruta entre estos edificios", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        autoGenerateRoutesBtn.addActionListener(e -> {
+            generarRutasAutomaticas();
+            actualizarTablaRutas.run();
+        });
+
+        deleteRouteBtn.addActionListener(e -> {
+            int selectedRow = routesTable.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Seleccione una ruta para eliminar", "Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            // Obtener información de la ruta seleccionada
+            String origenId = (String) routesModel.getValueAt(selectedRow, 0);
+            String destinoId = (String) routesModel.getValueAt(selectedRow, 1);
+            String rutaId = (String) routesModel.getValueAt(selectedRow, 4);
+
+            // Confirmar eliminación
+            int confirm = JOptionPane.showConfirmDialog(configDialog,
+                    "¿Está seguro de eliminar la siguiente ruta?\n\n" +
+                            "Origen: " + origenId + "\n" +
+                            "Destino: " + destinoId + "\n" +
+                            "ID Ruta: " + rutaId,
+                    "Confirmar Eliminación",
+                    JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    // Eliminar del campus usando el ID de la ruta
+                    boolean eliminada = campus.eliminarRuta(rutaId);
+
+                    if (eliminada) {
+                        // Eliminar de la tabla visual
+                        routesModel.removeRow(selectedRow);
+
+                        JOptionPane.showMessageDialog(configDialog,
+                                "Ruta eliminada exitosamente del sistema",
+                                "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(configDialog,
+                                "Error: No se pudo eliminar la ruta del sistema",
+                                "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(configDialog,
+                            "Error al eliminar la ruta: " + ex.getMessage(),
+                            "Error", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
 
-        footerPanel.add(buttonPanel, BorderLayout.EAST);
+        clearAllRoutesBtn.addActionListener(e -> {
+            if (campus.getRutas().isEmpty()) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "No hay rutas para eliminar",
+                        "Tabla Vacía", JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+
+            int totalRutas = campus.getRutas().size();
+
+            // Confirmación explícita
+            int confirm = JOptionPane.showConfirmDialog(configDialog,
+                    "¿Está seguro de eliminar TODAS las " + totalRutas + " rutas?\n\n" +
+                            "Esta acción no se puede deshacer.",
+                    "Confirmar Eliminación Total",
+                    JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    // Crear una copia de la lista de IDs para evitar problemas de concurrencia
+                    List<String> rutasIds = new ArrayList<>();
+                    for (Ruta ruta : campus.getRutas()) {
+                        rutasIds.add(ruta.getId());
+                    }
+
+                    // Eliminar todas las rutas
+                    int eliminadas = 0;
+                    for (String rutaId : rutasIds) {
+                        if (campus.eliminarRuta(rutaId)) {
+                            eliminadas++;
+                        }
+                    }
+
+                    // Limpiar la tabla visual
+                    routesModel.setRowCount(0);
+
+                    JOptionPane.showMessageDialog(configDialog,
+                            "Se eliminaron " + eliminadas + " de " + totalRutas + " rutas exitosamente",
+                            "Eliminación Completa", JOptionPane.INFORMATION_MESSAGE);
+
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(configDialog,
+                            "Error al eliminar las rutas: " + ex.getMessage(),
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        // Layout final
+        JPanel controlsPanel = new JPanel(new BorderLayout());
+        controlsPanel.add(topPanel, BorderLayout.NORTH);
+        controlsPanel.add(tableControls, BorderLayout.SOUTH);
+
+        routesPanel.add(controlsPanel, BorderLayout.NORTH);
+        routesPanel.add(routesScroll, BorderLayout.CENTER);
+
+        // Inicializar combos y tabla
+        actualizarCombos.run();
+        actualizarTablaRutas.run();
+
+        return routesPanel;
+    }
+
+    private void generarRutasAutomaticas() {
+        List<Edificio> edificios = campus.getEdificios();
+        int rutasGeneradas = 0;
+
+        for (int i = 0; i < edificios.size(); i++) {
+            for (int j = i + 1; j < edificios.size(); j++) {
+                Edificio origen = edificios.get(i);
+                Edificio destino = edificios.get(j);
+
+                // Generar valores aleatorios
+                double distancia = 50 * (2 + (int)(Math.random() * 9)); // 100, 150, 200, ..., 500 metros
+                double tiempo = 0.5 * (4 + (int)(Math.random() * 13)); // 2.0, 2.5, 3.0, ..., 8.0 minutos
+
+                try {
+                    if (campus.agregarRuta(origen.getId(), destino.getId(), distancia, tiempo)) {
+                        rutasGeneradas++;
+                    }
+                } catch (Exception e) {
+                    // Ignorar rutas que ya existen
+                }
+            }
+        }
+
+        JOptionPane.showMessageDialog(configDialog,
+                "Se generaron " + rutasGeneradas + " rutas automáticamente",
+                "Generación Automática", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // =====================================================================
+    // MÉTODO createSummaryPanel() - COMPLETADO
+    // =====================================================================
+    private JPanel createSummaryPanel() {
+        JPanel summaryPanel = new JPanel(new BorderLayout(10, 10));
+        summaryPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Panel principal con scroll
+        JTextArea summaryArea = new JTextArea();
+        summaryArea.setEditable(false);
+        summaryArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        summaryArea.setBackground(Color.WHITE);
+
+        JScrollPane scrollPane = new JScrollPane(summaryArea);
+        scrollPane.setBorder(BorderFactory.createTitledBorder("Resumen del Sistema del Campus"));
+
+        // Panel de controles
+        JPanel controlsPanel = new JPanel(new FlowLayout());
+        JButton refreshSummaryBtn = new JButton("Actualizar Resumen");
+        JButton validateSystemBtn = new JButton("Validar Sistema");
+
+        refreshSummaryBtn.setBackground(new Color(70, 130, 180));
+        refreshSummaryBtn.setForeground(Color.WHITE);
+        validateSystemBtn.setBackground(new Color(218, 165, 32));
+        validateSystemBtn.setForeground(Color.WHITE);
+
+        controlsPanel.add(refreshSummaryBtn);
+        controlsPanel.add(validateSystemBtn);
+
+        // Listeners
+        refreshSummaryBtn.addActionListener(e -> {
+            summaryArea.setText(generateSummaryText());
+            summaryArea.setCaretPosition(0); // Ir al inicio
+        });
+
+        validateSystemBtn.addActionListener(e -> {
+            String validationResult = validateSystem();
+            JOptionPane.showMessageDialog(configDialog, validationResult,
+                    "Validación del Sistema", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        // Generar resumen inicial
+        summaryArea.setText(generateSummaryText());
+
+        summaryPanel.add(controlsPanel, BorderLayout.NORTH);
+        summaryPanel.add(scrollPane, BorderLayout.CENTER);
+
+        return summaryPanel;
+    }
+
+    private String generateSummaryText() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("==============================================\n");
+        sb.append("        RESUMEN DEL SISTEMA DEL CAMPUS\n");
+        sb.append("==============================================\n\n");
+
+        sb.append("MODO DE OPERACIÓN: ").append(getModeTitle()).append("\n");
+        sb.append("Fecha de generación: ").append(java.time.LocalDateTime.now()).append("\n\n");
+
+        // Sección de edificios
+        sb.append("EDIFICIOS CONFIGURADOS: ").append(campus.getEdificios().size()).append("\n");
+        sb.append("----------------------------------------------\n");
+
+        for (Edificio edificio : campus.getEdificios()) {
+            sb.append(String.format("• %s (%s)\n", edificio.getNombre(), edificio.getId()));
+            sb.append(String.format("  Capacidad: %d vehículos\n", edificio.getCapacidadVehiculos()));
+
+            if (campusMode == CampusModeSelectionDialog.CampusConfigurationMode.CENTRO_CARGA_CENTRALIZADO) {
+                boolean esCentroPrincipal = campus.getCentroPrincipal() != null &&
+                        campus.getCentroPrincipal().getId().equals(edificio.getId());
+                sb.append(String.format("  Tipo: %s\n", esCentroPrincipal ? "CENTRO PRINCIPAL" : "Punto de Entrega"));
+            } else {
+                sb.append(String.format("  Centro de Carga: %s\n", edificio.isTieneCentroCarga() ? "SÍ" : "NO"));
+            }
+            sb.append("\n");
+        }
+
+        // Sección de rutas
+        sb.append("RUTAS CONFIGURADAS: ").append(campus.getRutas().size()).append("\n");
+        sb.append("----------------------------------------------\n");
+
+        for (Ruta ruta : campus.getRutas()) {
+            sb.append(String.format("• %s → %s\n",
+                    ruta.getOrigen().getId(), ruta.getDestino().getId()));
+            sb.append(String.format("  Distancia: %.1f m | Tiempo: %.1f min\n",
+                    ruta.getDistancia(), ruta.getTiempoEstimado()));
+        }
+        sb.append("\n");
+
+        // Estadísticas del sistema
+        sb.append("ESTADÍSTICAS DEL SISTEMA\n");
+        sb.append("----------------------------------------------\n");
+
+        int totalCapacidad = campus.getEdificios().stream().mapToInt(Edificio::getCapacidadVehiculos).sum();
+        int centrosCarga = (int) campus.getEdificios().stream().filter(Edificio::isTieneCentroCarga).count();
+
+        sb.append(String.format("Capacidad total del sistema: %d vehículos\n", totalCapacidad));
+        sb.append(String.format("Centros de carga configurados: %d\n", centrosCarga));
+        sb.append(String.format("Conectividad promedio: %.1f rutas por edificio\n",
+                campus.getEdificios().isEmpty() ? 0 : (double)campus.getRutas().size() / campus.getEdificios().size()));
+
+        // Información específica del modo
+        sb.append("\nCONFIGURACIÓN ESPECÍFICA DEL MODO\n");
+        sb.append("----------------------------------------------\n");
+
+        if (campusMode == CampusModeSelectionDialog.CampusConfigurationMode.CENTRO_CARGA_CENTRALIZADO) {
+            if (campus.getCentroPrincipal() != null) {
+                sb.append("✓ Centro principal configurado: ").append(campus.getCentroPrincipal().getNombre()).append("\n");
+                sb.append(String.format("✓ Capacidad del centro principal: %d vehículos\n",
+                        campus.getCentroPrincipal().getCapacidadVehiculos()));
+            } else {
+                sb.append("✗ Centro principal NO configurado\n");
+            }
+        } else {
+            sb.append("✓ Modo de centros distribuidos activado\n");
+            sb.append(String.format("✓ %d de %d edificios tienen centro de carga\n",
+                    centrosCarga, campus.getEdificios().size()));
+        }
+
+        sb.append("\n==============================================\n");
+        sb.append("              FIN DEL RESUMEN\n");
+        sb.append("==============================================\n");
+
+        return sb.toString();
+    }
+
+    private String validateSystem() {
+        StringBuilder validation = new StringBuilder();
+        validation.append("RESULTADO DE LA VALIDACIÓN DEL SISTEMA\n\n");
+
+        boolean systemValid = true;
+
+        // Validar edificios
+        if (campus.getEdificios().isEmpty()) {
+            validation.append("ERROR: No hay edificios configurados\n");
+            systemValid = false;
+        } else {
+            validation.append("✓ ").append(campus.getEdificios().size()).append(" edificios configurados\n");
+        }
+
+        // Validar rutas
+        if (campus.getRutas().isEmpty()) {
+            validation.append("⚠ ADVERTENCIA: No hay rutas configuradas\n");
+        } else {
+            validation.append("✓ ").append(campus.getRutas().size()).append(" rutas configuradas\n");
+        }
+
+        // Validaciones específicas del modo
+        if (campusMode == CampusModeSelectionDialog.CampusConfigurationMode.CENTRO_CARGA_CENTRALIZADO) {
+            if (campus.getCentroPrincipal() == null) {
+                validation.append("ERROR: No se ha configurado el centro principal\n");
+                systemValid = false;
+            } else {
+                validation.append("✓ Centro principal configurado: ").append(campus.getCentroPrincipal().getNombre()).append("\n");
+            }
+        } else {
+            long centrosCarga = campus.getEdificios().stream().filter(Edificio::isTieneCentroCarga).count();
+            if (centrosCarga == 0) {
+                validation.append("ADVERTENCIA: Ningún edificio tiene centro de carga\n");
+            } else {
+                validation.append("✓ ").append(centrosCarga).append(" centros de carga configurados\n");
+            }
+        }
+
+        // Validar conectividad
+        if (campus.getEdificios().size() >= 2 && campus.getRutas().size() < campus.getEdificios().size() - 1) {
+            validation.append("⚠ ADVERTENCIA: Baja conectividad entre edificios\n");
+        }
+
+        validation.append("\nSISTEMA: ").append(systemValid ? "VÁLIDO" : "NO VÁLIDO");
+
+        return validation.toString();
+    }
+
+    private void createFooter() {
+        JPanel footerPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        footerPanel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+
+        JButton saveButton = new JButton("Guardar Configuración");
+        JButton cancelButton = new JButton("Cancelar");
+
+        saveButton.setBackground(new Color(34, 139, 34));
+        saveButton.setForeground(Color.WHITE);
+        cancelButton.setBackground(new Color(220, 53, 69));
+        cancelButton.setForeground(Color.WHITE);
+
+        saveButton.addActionListener(e -> {
+            if (validateConfiguration()) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Configuración guardada exitosamente", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                configDialog.dispose();
+            }
+        });
+
+        cancelButton.addActionListener(e -> {
+            int result = JOptionPane.showConfirmDialog(configDialog,
+                    "¿Está seguro de cancelar? Los cambios no guardados se perderán.",
+                    "Confirmar Cancelación", JOptionPane.YES_NO_OPTION);
+            if (result == JOptionPane.YES_OPTION) {
+                configDialog.dispose();
+            }
+        });
+
+        footerPanel.add(cancelButton);
+        footerPanel.add(saveButton);
 
         configDialog.add(footerPanel, BorderLayout.SOUTH);
     }
 
     private boolean validateConfiguration() {
-        // Validaciones específicas por modo
-        switch (campusMode) {
-            case CENTRO_CARGA_CENTRALIZADO:
-                return validateCentralizedConfiguration();
-            case CENTROS_CARGA_DISTRIBUIDOS:
-                return validateDistributedConfiguration();
-            default:
-                return false;
+        // Validaciones básicas
+        if (campus.getEdificios().isEmpty()) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "Debe agregar al menos un edificio", "Error", JOptionPane.ERROR_MESSAGE);
+            return false;
         }
-    }
 
-    private boolean validateCentralizedConfiguration() {
-        // Validar que hay un centro principal definido
-        // y al menos 2 edificios totales
-        return true; // Implementar validación real
-    }
+        // Validaciones específicas por modo
+        if (campusMode == CampusModeSelectionDialog.CampusConfigurationMode.CENTRO_CARGA_CENTRALIZADO) {
+            if (campus.getCentroPrincipal() == null) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Debe configurar un centro principal de carga", "Error", JOptionPane.ERROR_MESSAGE);
+                return false;
+            }
+        }
 
-    private boolean validateDistributedConfiguration() {
-        // Validar que hay al menos 2 edificios con centros de carga
-        // y capacidades definidas
-        return true; // Implementar validación real
+        return true;
     }
 }
