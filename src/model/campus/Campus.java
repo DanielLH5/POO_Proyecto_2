@@ -1,60 +1,18 @@
 package model.campus;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Campus {
-<<<<<<< HEAD
-    private List<Edificio> edificios;    // ✅ Lista en lugar de Map
-=======
-<<<<<<< Updated upstream
-}
-=======
     private List<Edificio> edificios;
->>>>>>> Aportes_Elian
     private List<Ruta> rutas;
     private Edificio centroPrincipal;
 
     public Campus() {
         this.edificios = new ArrayList<>();
         this.rutas = new ArrayList<>();
-<<<<<<< HEAD
-        inicializarCampusEjemplo();
-    }
-
-    // Esto lo podemos usar como prueba, lo ideal sería hacerlo random. Pero por ahora así podría funcionar.
-    private void inicializarCampusEjemplo() {
-        // Crear edificios
-        agregarEdificio(new Edificio("A", "Edificio A", 10, true));
-        agregarEdificio(new Edificio("B", "Edificio B", 8, false));
-        agregarEdificio(new Edificio("C", "Centro Principal", 20, true));
-        agregarEdificio(new Edificio("D", "Edificio D", 6, true));
-
-        this.centroPrincipal = getEdificio("C"); // Buscar por ID
-
-        // Crear rutas
-        agregarRuta(new Ruta(getEdificio("A"), getEdificio("B"), 90));
-        agregarRuta(new Ruta(getEdificio("B"), getEdificio("C"), 100));
-        agregarRuta(new Ruta(getEdificio("C"), getEdificio("D"), 120));
-        agregarRuta(new Ruta(getEdificio("A"), getEdificio("C"), 80));
-        agregarRuta(new Ruta(getEdificio("A"), getEdificio("D"), 200));
-    }
-
-    // Metodo con listas (más simples)
-    public void agregarEdificio(Edificio edificio) {
-        if (!edificios.contains(edificio)) {
-            edificios.add(edificio);
-        }
-    }
-
-    // Buscar edificio por ID (recorriendo la lista)
-    public Edificio getEdificio(String id) {
-        for (Edificio edificio : edificios) {
-            if (edificio.getId().equals(id)) {
-                return edificio;
-            }
-        }
-        return null; // No encontrado
-=======
         this.centroPrincipal = null;
     }
 
@@ -99,23 +57,12 @@ public class Campus {
             }
         }
         return null;
->>>>>>> Aportes_Elian
     }
 
     public boolean existeEdificio(String id) {
         return getEdificio(id) != null;
     }
 
-<<<<<<< HEAD
-    // Metodos para rutas
-    public void agregarRuta(Ruta ruta) {
-        rutas.add(ruta);
-    }
-
-    // Calcular distancia entre dos edificios
-    public double getDistancia(Edificio origen, Edificio destino) {
-        if (origen.equals(destino)) return 0;
-=======
     public List<Edificio> getEdificiosPorTipo(boolean soloCentrosCarga) {
         List<Edificio> resultado = new ArrayList<>();
         for (Edificio edificio : edificios) {
@@ -167,7 +114,6 @@ public class Campus {
         if (origen.equals(destino)) {
             return 0;
         }
->>>>>>> Aportes_Elian
 
         for (Ruta ruta : rutas) {
             if (ruta.conecta(origen, destino)) {
@@ -177,11 +123,6 @@ public class Campus {
         return -1; // No hay ruta directa
     }
 
-<<<<<<< HEAD
-    // Obtener edificios vecinos
-    public List<Edificio> getEdificiosVecinos(Edificio edificio) {
-        List<Edificio> vecinos = new ArrayList<>();
-=======
     public double getDistancia(String idOrigen, String idDestino) {
         Edificio origen = getEdificio(idOrigen);
         Edificio destino = getEdificio(idDestino);
@@ -194,7 +135,6 @@ public class Campus {
             return vecinos;
         }
 
->>>>>>> Aportes_Elian
         for (Ruta ruta : rutas) {
             if (ruta.getOrigen().equals(edificio)) {
                 vecinos.add(ruta.getDestino());
@@ -205,10 +145,6 @@ public class Campus {
         return vecinos;
     }
 
-<<<<<<< HEAD
-    // Metodo para encontrar ruta entre dos edificios
-    public Ruta getRuta(Edificio origen, Edificio destino) {
-=======
     public List<Edificio> getEdificiosVecinos(String idEdificio) {
         Edificio edificio = getEdificio(idEdificio);
         return getEdificiosVecinos(edificio);
@@ -219,7 +155,6 @@ public class Campus {
             return null;
         }
 
->>>>>>> Aportes_Elian
         for (Ruta ruta : rutas) {
             if (ruta.conecta(origen, destino)) {
                 return ruta;
@@ -228,16 +163,12 @@ public class Campus {
         return null;
     }
 
-<<<<<<< HEAD
-    // Metodos para centros de carga
-=======
     public Ruta getRuta(String idOrigen, String idDestino) {
         Edificio origen = getEdificio(idOrigen);
         Edificio destino = getEdificio(idDestino);
         return getRuta(origen, destino);
     }
 
->>>>>>> Aportes_Elian
     public List<Edificio> getCentrosCarga() {
         List<Edificio> centros = new ArrayList<>();
         for (Edificio edificio : edificios) {
@@ -248,9 +179,6 @@ public class Campus {
         return centros;
     }
 
-<<<<<<< HEAD
-    public Edificio getCentroCargaMasCercano(Edificio ubicacionActual) {
-=======
     public List<Edificio> getCentrosPrincipales() {
         List<Edificio> centros = new ArrayList<>();
         for (Edificio edificio : edificios) {
@@ -266,19 +194,15 @@ public class Campus {
             return null;
         }
 
->>>>>>> Aportes_Elian
         List<Edificio> centros = getCentrosCarga();
         Edificio masCercano = null;
         double menorDistancia = Double.MAX_VALUE;
 
         for (Edificio centro : centros) {
-<<<<<<< HEAD
-=======
             if (centro.equals(ubicacionActual)) {
                 continue; // Saltar el mismo edificio
             }
 
->>>>>>> Aportes_Elian
             double distancia = getDistancia(ubicacionActual, centro);
             if (distancia > 0 && distancia < menorDistancia) {
                 menorDistancia = distancia;
@@ -288,11 +212,6 @@ public class Campus {
         return masCercano;
     }
 
-<<<<<<< HEAD
-    // Getters actualizados para Listas
-    public List<Edificio> getEdificios() {
-        return new ArrayList<>(edificios); // Copia de la lista
-=======
     public Edificio getCentroCargaMasCercano(String idUbicacionActual) {
         Edificio ubicacion = getEdificio(idUbicacionActual);
         return getCentroCargaMasCercano(ubicacion);
@@ -459,7 +378,6 @@ public class Campus {
 
     public List<Edificio> getEdificios() {
         return new ArrayList<>(edificios);
->>>>>>> Aportes_Elian
     }
 
     public List<Ruta> getRutas() {
@@ -471,9 +389,6 @@ public class Campus {
     }
 
     public void setCentroPrincipal(Edificio centroPrincipal) {
-<<<<<<< HEAD
-        this.centroPrincipal = centroPrincipal;
-=======
         if (this.centroPrincipal != null) {
             this.centroPrincipal.setEsCentroPrincipal(false);
         }
@@ -491,20 +406,13 @@ public class Campus {
             return true;
         }
         return false;
->>>>>>> Aportes_Elian
     }
 
     @Override
     public String toString() {
-<<<<<<< HEAD
-        return "Campus con " + edificios.size() + " edificios y " + rutas.size() + " rutas";
-    }
-}}
-=======
         return String.format("Campus [Edificios: %d, Rutas: %d, Centro Principal: %s]",
                 edificios.size(), rutas.size(),
                 centroPrincipal != null ? centroPrincipal.getId() : "Ninguno");
     }
 }
->>>>>>> Stashed changes
->>>>>>> Aportes_Elian
+
