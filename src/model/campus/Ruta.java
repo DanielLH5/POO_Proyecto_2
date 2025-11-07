@@ -1,6 +1,8 @@
 package model.campus;
 
-public class Ruta {
+import java.io.Serializable;
+
+public class Ruta implements Serializable {
     private final String id;
     private final Edificio origen;
     private final Edificio destino;

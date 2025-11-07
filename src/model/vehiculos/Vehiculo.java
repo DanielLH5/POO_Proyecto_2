@@ -3,10 +3,12 @@ package model.vehiculos;
 import interfaces.Chargeable;
 import interfaces.Trackable;
 import model.campus.Edificio;
+
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class Vehiculo implements Chargeable, Trackable {
+public abstract class Vehiculo implements Chargeable, Trackable, Serializable {
     // ATRIBUTOS COMUNES A TODOS LOS VEHÍCULOS
     protected String id;
     protected Bateria bateria;

@@ -1,6 +1,8 @@
 package model.campus;
 
-public class Edificio {
+import java.io.Serializable;
+
+public class Edificio implements Serializable {
     private final String id;
     private String nombre;
     private int capacidadVehiculos;

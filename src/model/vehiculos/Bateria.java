@@ -1,6 +1,8 @@
 package model.vehiculos;
 
-public class Bateria {
+import java.io.Serializable;
+
+public class Bateria implements Serializable {
     private double capacidadTotal;
     private double nivelActual;
     private final double nivelMinimo;

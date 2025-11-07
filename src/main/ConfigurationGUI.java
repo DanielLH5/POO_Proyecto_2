@@ -6,9 +6,17 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import model.vehiculos.Vehiculo;
+import model.vehiculos.Dron;
+import model.vehiculos.Rover;
+import model.vehiculos.EBike;
+import javax.swing.table.DefaultTableCellRenderer;
 import model.campus.Campus;
 import model.campus.Edificio;
 import model.campus.Ruta;
@@ -19,6 +27,8 @@ public class ConfigurationGUI {
     private DefaultTableModel routesModel;
     private Campus campus;
     private CampusModeSelectionDialog.CampusConfigurationMode campusMode;
+    private DefaultTableModel vehiclesModel;
+    private List<Vehiculo> flotaVehiculos;
 
     // Componentes específicos por modo
     private JComboBox<String> mainChargeCenterCombo;
@@ -27,7 +37,16 @@ public class ConfigurationGUI {
 
     public ConfigurationGUI(JFrame parent, CampusModeSelectionDialog.CampusConfigurationMode mode) {
         this.campusMode = mode;
-        this.campus = new Campus(); // Inicializar campus vacío
+        this.campus = Persistencia.PersistenceManager.cargarCampus();
+        this.flotaVehiculos = Persistencia.PersistenceManager.cargarFlota();
+
+        if (this.campus == null) {
+            this.campus = new Campus();
+        }
+        if (this.flotaVehiculos == null) {
+            this.flotaVehiculos = new ArrayList<>();
+        }
+
         initializeGUI(parent);
     }
 
@@ -124,6 +143,7 @@ public class ConfigurationGUI {
         tabbedPane.addTab("Configuración del Modo", createModeConfigurationPanel());
         tabbedPane.addTab("Gestión de Edificios", createBuildingsPanel());
         tabbedPane.addTab("Configuración de Rutas", createRoutesPanel());
+        tabbedPane.addTab("Gestión de Vehículos", createVehiclesPanel()); // NUEVA PESTAÑA
         tabbedPane.addTab("Resumen del Sistema", createSummaryPanel());
 
         configDialog.add(tabbedPane, BorderLayout.CENTER);
@@ -378,6 +398,12 @@ public class ConfigurationGUI {
         deleteBuildingBtn.setForeground(Color.WHITE);
         clearAllBtn.setBackground(new Color(180, 60, 60));
         clearAllBtn.setForeground(Color.WHITE);
+        deleteBuildingBtn.setContentAreaFilled(true);
+        deleteBuildingBtn.setOpaque(true);
+        deleteBuildingBtn.setBorderPainted(false);
+        clearAllBtn.setContentAreaFilled(true);
+        clearAllBtn.setOpaque(true);
+        clearAllBtn.setBorderPainted(false);
 
         tableControls.add(refreshTableBtn);
         tableControls.add(deleteBuildingBtn);
@@ -471,6 +497,608 @@ public class ConfigurationGUI {
         return buildingsPanel;
     }
 
+    private JPanel createVehiclesPanel() {
+        JPanel vehiclesPanel = new JPanel(new BorderLayout(10, 10));
+        vehiclesPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+        // Panel superior con controles de creación
+        JPanel creationPanel = new JPanel(new GridLayout(4, 2, 10, 10));
+        creationPanel.setBorder(BorderFactory.createTitledBorder("Crear Nuevo Vehículo"));
+
+        JComboBox<String> vehicleTypeCombo = new JComboBox<>(new String[]{"DRON", "ROVER", "E-BIKE"});
+        JTextField vehicleIdField = new JTextField();
+        JComboBox<String> initialLocationCombo = new JComboBox<>();
+        JButton createVehicleBtn = new JButton("Crear Vehículo");
+        JButton generateFleetBtn = new JButton("Generar Flota Automáticamente");
+
+        creationPanel.add(new JLabel("Tipo de Vehículo:"));
+        creationPanel.add(vehicleTypeCombo);
+        creationPanel.add(new JLabel("ID del Vehículo*:"));
+        creationPanel.add(vehicleIdField);
+        creationPanel.add(new JLabel("Ubicación Inicial:"));
+        creationPanel.add(initialLocationCombo);
+        creationPanel.add(createVehicleBtn);
+        creationPanel.add(generateFleetBtn);
+
+        // Panel de controles de tabla
+        JPanel tableControls = new JPanel(new FlowLayout());
+        JButton refreshVehiclesBtn = new JButton("Actualizar Tabla");
+        JButton changeStatusBtn = new JButton("Cambiar Estado");
+        JButton chargeVehicleBtn = new JButton("Cargar Vehículo");
+        JButton deleteVehicleBtn = new JButton("Eliminar Vehículo");
+        JButton fleetStatsBtn = new JButton("Estadísticas de Flota");
+
+        refreshVehiclesBtn.setBackground(new Color(70, 130, 180));
+        refreshVehiclesBtn.setForeground(Color.WHITE);
+        changeStatusBtn.setBackground(new Color(218, 165, 32));
+        changeStatusBtn.setForeground(Color.WHITE);
+        chargeVehicleBtn.setBackground(new Color(34, 139, 34));
+        chargeVehicleBtn.setForeground(Color.WHITE);
+        deleteVehicleBtn.setBackground(new Color(220, 80, 80));
+        deleteVehicleBtn.setForeground(Color.WHITE);
+        fleetStatsBtn.setBackground(new Color(75, 0, 130));
+        fleetStatsBtn.setForeground(Color.WHITE);
+        refreshVehiclesBtn.setContentAreaFilled(true);
+        refreshVehiclesBtn.setOpaque(true);
+        refreshVehiclesBtn.setBorderPainted(false);
+        changeStatusBtn.setContentAreaFilled(true);
+        changeStatusBtn.setOpaque(true);
+        changeStatusBtn.setBorderPainted(false);
+        chargeVehicleBtn.setContentAreaFilled(true);
+        chargeVehicleBtn.setOpaque(true);
+        chargeVehicleBtn.setBorderPainted(false);
+        deleteVehicleBtn.setContentAreaFilled(true);
+        deleteVehicleBtn.setOpaque(true);
+        deleteVehicleBtn.setBorderPainted(false);
+        fleetStatsBtn.setContentAreaFilled(true);
+        fleetStatsBtn.setOpaque(true);
+        fleetStatsBtn.setBorderPainted(false);
+
+        tableControls.add(refreshVehiclesBtn);
+        tableControls.add(changeStatusBtn);
+        tableControls.add(chargeVehicleBtn);
+        tableControls.add(deleteVehicleBtn);
+        tableControls.add(fleetStatsBtn);
+
+        // Tabla de vehículos
+        String[] columns = {"ID", "Tipo", "Ubicación", "Batería", "Estado", "Capacidad Carga", "Consumo kWh/km"};
+        vehiclesModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        JTable vehiclesTable = new JTable(vehiclesModel);
+
+        // Configurar renderizador para columna de batería (barra de progreso)
+        vehiclesTable.getColumnModel().getColumn(3).setCellRenderer(new BatteryLevelRenderer());
+
+        JScrollPane vehiclesScroll = new JScrollPane(vehiclesTable);
+
+        // Método para actualizar combo de ubicaciones
+        Runnable actualizarUbicaciones = () -> {
+            initialLocationCombo.removeAllItems();
+            for (Edificio edificio : campus.getEdificios()) {
+                initialLocationCombo.addItem(edificio.getId() + " - " + edificio.getNombre());
+            }
+        };
+
+        // Método para actualizar tabla de vehículos
+        Runnable actualizarTablaVehiculos = () -> {
+            vehiclesModel.setRowCount(0);
+            for (Vehiculo vehiculo : flotaVehiculos) {
+                String ubicacion = vehiculo.getUbicacionActual() != null ?
+                        vehiculo.getUbicacionActual().getId() : "N/A";
+
+                vehiclesModel.addRow(new Object[]{
+                        vehiculo.getId(),
+                        vehiculo.getTipo(),
+                        ubicacion,
+                        vehiculo.getEstadoBateria(), // Porcentaje para la barra
+                        vehiculo.getEstado(),
+                        vehiculo.getCapacidadCarga() + " kg",
+                        String.format("%.3f", vehiculo.getConsumoEnergia())
+                });
+            }
+        };
+
+        // Listeners
+        createVehicleBtn.addActionListener(e -> {
+            String tipo = (String) vehicleTypeCombo.getSelectedItem();
+            String id = vehicleIdField.getText().trim();
+
+            if (id.isEmpty()) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "El ID del vehículo es obligatorio", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (initialLocationCombo.getSelectedItem() == null) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Debe seleccionar una ubicación inicial", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Verificar si ya existe un vehículo con ese ID
+            if (existeVehiculo(id)) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Ya existe un vehículo con ID: " + id, "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            String ubicacionStr = (String) initialLocationCombo.getSelectedItem();
+            String ubicacionId = ubicacionStr.split(" - ")[0];
+            Edificio ubicacionInicial = campus.getEdificio(ubicacionId);
+
+            // VERIFICAR CAPACIDAD ANTES DE CREAR
+            if (ubicacionInicial.getCapacidadVehiculos() <= 0) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "El edificio " + ubicacionInicial.getNombre() + " está lleno.\n" +
+                                "Capacidad máxima: " + ubicacionInicial.getCapacidadVehiculos() + " vehículos\n\n" +
+                                "Seleccione otro edificio o aumente la capacidad.",
+                        "Edificio Lleno", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            try {
+                Vehiculo nuevoVehiculo = crearVehiculo(tipo, id, ubicacionInicial);
+                flotaVehiculos.add(nuevoVehiculo);
+
+                // DISMINUIR CAPACIDAD DEL EDIFICIO
+                ubicacionInicial.setCapacidadVehiculos(ubicacionInicial.getCapacidadVehiculos() - 1);
+
+                actualizarTablaVehiculos.run();
+                actualizarTablaCompleta(); // Para actualizar capacidad en tabla edificios
+                vehicleIdField.setText("");
+
+                JOptionPane.showMessageDialog(configDialog,
+                        "Vehículo creado exitosamente:\n" +
+                                "Tipo: " + tipo + "\n" +
+                                "ID: " + id + "\n" +
+                                "Ubicación: " + ubicacionInicial.getNombre() + "\n" +
+                                "Espacios disponibles: " + ubicacionInicial.getCapacidadVehiculos(),
+                        "Vehículo Creado", JOptionPane.INFORMATION_MESSAGE);
+
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Error al crear vehículo: " + ex.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        generateFleetBtn.addActionListener(e -> {
+            generarFlotaAutomatica();
+            actualizarTablaVehiculos.run();
+        });
+
+        refreshVehiclesBtn.addActionListener(e -> {
+            actualizarUbicaciones.run();
+            actualizarTablaVehiculos.run(); // Esto ahora funcionará
+            JOptionPane.showMessageDialog(configDialog,
+                    "Tabla y ubicaciones actualizadas",
+                    "Actualización", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        changeStatusBtn.addActionListener(e -> {
+            cambiarEstadoVehiculo(vehiclesTable);
+            actualizarTablaVehiculos.run();
+        });
+
+        chargeVehicleBtn.addActionListener(e -> {
+            cargarVehiculo(vehiclesTable);
+            actualizarTablaVehiculos.run();
+        });
+
+        deleteVehicleBtn.addActionListener(e -> {
+            eliminarVehiculo(vehiclesTable);
+            actualizarTablaVehiculos.run();
+        });
+
+        JButton deleteAllVehiclesBtn = new JButton("Eliminar Todos los Vehículos");
+        deleteAllVehiclesBtn.setBackground(new Color(180, 60, 60));
+        deleteAllVehiclesBtn.setForeground(Color.WHITE);
+        deleteAllVehiclesBtn.setContentAreaFilled(true);
+        deleteAllVehiclesBtn.setOpaque(true);
+        deleteAllVehiclesBtn.setBorderPainted(false);
+
+        tableControls.add(deleteAllVehiclesBtn);
+
+        deleteAllVehiclesBtn.addActionListener(e -> {
+            eliminarTodosLosVehiculos();
+        });
+
+        fleetStatsBtn.addActionListener(e -> {
+            mostrarEstadisticasFlota();
+        });
+
+        // Layout final
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(creationPanel, BorderLayout.NORTH);
+        topPanel.add(tableControls, BorderLayout.SOUTH);
+
+        vehiclesPanel.add(topPanel, BorderLayout.NORTH);
+        vehiclesPanel.add(vehiclesScroll, BorderLayout.CENTER);
+
+        // Inicializar
+        actualizarUbicaciones.run();
+        actualizarTablaVehiculos.run();
+
+        return vehiclesPanel;
+    }
+
+    private boolean existeVehiculo(String id) {
+        return flotaVehiculos.stream().anyMatch(v -> v.getId().equals(id));
+    }
+
+    private Vehiculo crearVehiculo(String tipo, String id, Edificio ubicacionInicial) {
+        switch (tipo) {
+            case "DRON":
+                return new Dron(id, ubicacionInicial);
+            case "ROVER":
+                return new Rover(id, ubicacionInicial);
+            case "E-BIKE":
+                return new EBike(id, ubicacionInicial);
+            default:
+                throw new IllegalArgumentException("Tipo de vehículo no válido: " + tipo);
+        }
+    }
+
+    private Edificio encontrarEdificioConCapacidad(List<Edificio> edificios) {
+        List<Edificio> edificiosConCapacidad = edificios.stream()
+                .filter(e -> e.getCapacidadVehiculos() > 0)
+                .collect(Collectors.toList());
+
+        if (edificiosConCapacidad.isEmpty()) {
+            return null;
+        }
+
+        // SELECCIONAR ALEATORIAMENTE para distribuir mejor
+        int indiceAleatorio = (int) (Math.random() * edificiosConCapacidad.size());
+        return edificiosConCapacidad.get(indiceAleatorio);
+    }
+
+    private void generarFlotaAutomatica() {
+        if (campus.getEdificios().isEmpty()) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "No hay edificios disponibles para asignar vehículos",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String[] drones = {"D001", "D002", "D003"};
+        String[] rovers = {"R001", "R002"};
+        String[] ebikes = {"E001", "E002", "E003", "E004"};
+
+        int creados = 0;
+        List<Edificio> edificios = campus.getEdificios();
+        int edificiosConCapacidad = (int) edificios.stream()
+                .filter(e -> e.getCapacidadVehiculos() > 0)
+                .count();
+
+        if (edificiosConCapacidad == 0) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "Todos los edificios están llenos. Aumenta la capacidad primero.",
+                    "Sin Capacidad", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Crear drones
+        for (String id : drones) {
+            if (!existeVehiculo(id)) {
+                Edificio ubicacion = encontrarEdificioConCapacidad(edificios);
+                if (ubicacion != null) {
+                    ubicacion.setCapacidadVehiculos(ubicacion.getCapacidadVehiculos() - 1);
+                    flotaVehiculos.add(new Dron(id, ubicacion));
+                    creados++;
+                }
+            }
+        }
+
+        // Crear rovers
+        for (String id : rovers) {
+            if (!existeVehiculo(id)) {
+                Edificio ubicacion = encontrarEdificioConCapacidad(edificios);
+                if (ubicacion != null) {
+                    ubicacion.setCapacidadVehiculos(ubicacion.getCapacidadVehiculos() - 1);
+                    flotaVehiculos.add(new Rover(id, ubicacion));
+                    creados++;
+                }
+            }
+        }
+
+        // Crear e-bikes
+        for (String id : ebikes) {
+            if (!existeVehiculo(id)) {
+                Edificio ubicacion = encontrarEdificioConCapacidad(edificios);
+                if (ubicacion != null) {
+                    ubicacion.setCapacidadVehiculos(ubicacion.getCapacidadVehiculos() - 1);
+                    flotaVehiculos.add(new EBike(id, ubicacion));
+                    creados++;
+                }
+            }
+        }
+
+        JOptionPane.showMessageDialog(configDialog,
+                "Se generaron " + creados + " vehículos automáticamente\n\n" +
+                        "• " + drones.length + " drones\n" +
+                        "• " + rovers.length + " rovers\n" +
+                        "• " + ebikes.length + " e-bikes\n\n" +
+                        "Espacios ocupados en edificios: " + creados,
+                "Flota Generada", JOptionPane.INFORMATION_MESSAGE);
+
+        // Actualizar tabla de edificios para reflejar cambios de capacidad
+        actualizarTablaCompleta();
+    }
+
+    private void cambiarEstadoVehiculo(JTable vehiclesTable) {
+        int selectedRow = vehiclesTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "Seleccione un vehículo de la tabla",
+                    "Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String vehicleId = (String) vehiclesModel.getValueAt(selectedRow, 0);
+        Vehiculo vehiculo = flotaVehiculos.stream()
+                .filter(v -> v.getId().equals(vehicleId))
+                .findFirst()
+                .orElse(null);
+
+        if (vehiculo != null) {
+            String[] estados = {"DISPONIBLE", "EN_ENTREGA", "EN_CARGA", "FUERA_SERVICIO"};
+            String nuevoEstado = (String) JOptionPane.showInputDialog(configDialog,
+                    "Seleccione nuevo estado para " + vehicleId + ":",
+                    "Cambiar Estado",
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    estados,
+                    vehiculo.getEstado());
+
+            if (nuevoEstado != null) {
+                vehiculo.cambiarEstado(nuevoEstado);
+                JOptionPane.showMessageDialog(configDialog,
+                        "Estado cambiado a: " + nuevoEstado,
+                        "Estado Actualizado", JOptionPane.INFORMATION_MESSAGE);
+            }
+        }
+    }
+
+    private void cargarVehiculo(JTable vehiclesTable) {
+        int selectedRow = vehiclesTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "Seleccione un vehículo para cargar",
+                    "Error", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String vehicleId = (String) vehiclesModel.getValueAt(selectedRow, 0);
+        Vehiculo vehiculo = flotaVehiculos.stream()
+                .filter(v -> v.getId().equals(vehicleId))
+                .findFirst()
+                .orElse(null);
+
+        if (vehiculo != null) {
+            if (vehiculo.getUbicacionActual() == null ||
+                    !vehiculo.getUbicacionActual().isTieneCentroCarga()) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "El vehículo debe estar en un edificio con centro de carga",
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Cargar al 100%
+            vehiculo.getBateria().cargarCompleto();
+            vehiculo.cambiarEstado("DISPONIBLE");
+
+            JOptionPane.showMessageDialog(configDialog,
+                    "Vehículo " + vehicleId + " cargado al 100%",
+                    "Carga Completada", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void eliminarVehiculo(JTable vehiclesTable) {
+        int selectedRow = vehiclesTable.getSelectedRow();
+        if (selectedRow == -1) return;
+
+        String vehicleId = (String) vehiclesModel.getValueAt(selectedRow, 0);
+        Vehiculo vehiculo = flotaVehiculos.stream()
+                .filter(v -> v.getId().equals(vehicleId))
+                .findFirst()
+                .orElse(null);
+
+        if (vehiculo != null && vehiculo.getUbicacionActual() != null) {
+            // LIBERAR ESPACIO EN EL EDIFICIO
+            Edificio ubicacion = vehiculo.getUbicacionActual();
+            ubicacion.setCapacidadVehiculos(ubicacion.getCapacidadVehiculos() + 1);
+        }
+
+        flotaVehiculos.removeIf(v -> v.getId().equals(vehicleId));
+        String vehicleType = (String) vehiclesModel.getValueAt(selectedRow, 1);
+
+        int confirm = JOptionPane.showConfirmDialog(configDialog,
+                "¿Está seguro de eliminar el siguiente vehículo?\n\n" +
+                        "ID: " + vehicleId + "\n" +
+                        "Tipo: " + vehicleType,
+                "Confirmar Eliminación",
+                JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            flotaVehiculos.removeIf(v -> v.getId().equals(vehicleId));
+            JOptionPane.showMessageDialog(configDialog,
+                    "Vehículo eliminado exitosamente",
+                    "Eliminación Exitosa", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void eliminarTodosLosVehiculos() {
+        if (flotaVehiculos.isEmpty()) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "No hay vehículos para eliminar",
+                    "Flota Vacía", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int totalVehiculos = flotaVehiculos.size();
+
+        // Confirmación explícita
+        JPanel confirmPanel = new JPanel(new BorderLayout());
+        JLabel warningLabel = new JLabel(
+                "<html><b style='color:red; font-size:14px;'>ADVERTENCIA: ELIMINAR TODOS LOS VEHÍCULOS</b><br><br>" +
+                        "Está a punto de eliminar <b>TODOS</b> los vehículos de la flota:<br><br>" +
+                        "• Total de vehículos: <b>" + totalVehiculos + "</b><br>" +
+                        "• Se liberarán espacios en los edificios<br><br>" +
+                        "¿Está absolutamente seguro?</html>");
+
+        JCheckBox confirmCheck = new JCheckBox("Sí, entiendo que esta acción liberará todos los espacios en edificios");
+
+        confirmPanel.add(warningLabel, BorderLayout.NORTH);
+        confirmPanel.add(confirmCheck, BorderLayout.SOUTH);
+
+        int confirm = JOptionPane.showConfirmDialog(configDialog,
+                confirmPanel,
+                "ELIMINAR TODOS LOS VEHÍCULOS",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION && confirmCheck.isSelected()) {
+            try {
+                // LIBERAR ESPACIOS EN TODOS LOS EDIFICIOS
+                for (Vehiculo vehiculo : flotaVehiculos) {
+                    if (vehiculo.getUbicacionActual() != null) {
+                        Edificio ubicacion = vehiculo.getUbicacionActual();
+                        ubicacion.setCapacidadVehiculos(ubicacion.getCapacidadVehiculos() + 1);
+                    }
+                }
+
+                // Limpiar flota
+                flotaVehiculos.clear();
+
+                // Actualizar interfaces
+                actualizarTablaVehiculos();
+                actualizarTablaCompleta();
+
+                JOptionPane.showMessageDialog(configDialog,
+                        "Se eliminaron todos los vehículos exitosamente:\n\n" +
+                                "• Vehículos eliminados: " + totalVehiculos + "\n" +
+                                "• Espacios liberados en edificios\n" +
+                                "• Flota reiniciada completamente",
+                        "Eliminación Completa", JOptionPane.INFORMATION_MESSAGE);
+
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Error al eliminar todos los vehículos: " + ex.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } else if (confirm == JOptionPane.YES_OPTION && !confirmCheck.isSelected()) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "Debe marcar la casilla de confirmación para proceder",
+                    "Confirmación Requerida", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void mostrarEstadisticasFlota() {
+        if (flotaVehiculos.isEmpty()) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "No hay vehículos en la flota",
+                    "Flota Vacía", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        long drones = flotaVehiculos.stream().filter(v -> v instanceof Dron).count();
+        long rovers = flotaVehiculos.stream().filter(v -> v instanceof Rover).count();
+        long ebikes = flotaVehiculos.stream().filter(v -> v instanceof EBike).count();
+
+        long disponibles = flotaVehiculos.stream().filter(v -> v.estaDisponible()).count();
+        long enEntrega = flotaVehiculos.stream().filter(v -> "EN_ENTREGA".equals(v.getEstado())).count();
+        long enCarga = flotaVehiculos.stream().filter(v -> "EN_CARGA".equals(v.getEstado())).count();
+        long fueraServicio = flotaVehiculos.stream().filter(v -> "FUERA_SERVICIO".equals(v.getEstado())).count();
+
+        long necesitanCarga = flotaVehiculos.stream().filter(v -> v.necesitaRecarga()).count();
+
+        double capacidadTotal = flotaVehiculos.stream().mapToDouble(Vehiculo::getCapacidadCarga).sum();
+        double consumoPromedio = flotaVehiculos.stream().mapToDouble(Vehiculo::getConsumoEnergia).average().orElse(0);
+
+        String stats = String.format(
+                "ESTADÍSTICAS DE FLOTA\n\n" +
+                        "Total de vehículos: %d\n\n" +
+                        "Distribución por tipo:\n" +
+                        "• Drones: %d\n" +
+                        "• Rovers: %d\n" +
+                        "• E-Bikes: %d\n\n" +
+                        "Estados:\n" +
+                        "• Disponibles: %d\n" +
+                        "• En entrega: %d\n" +
+                        "• En carga: %d\n" +
+                        "• Fuera de servicio: %d\n\n" +
+                        "Métricas:\n" +
+                        "• Necesitan carga: %d\n" +
+                        "• Capacidad total de carga: %.1f kg\n" +
+                        "• Consumo promedio: %.3f kWh/km",
+                flotaVehiculos.size(), drones, rovers, ebikes,
+                disponibles, enEntrega, enCarga, fueraServicio,
+                necesitanCarga, capacidadTotal, consumoPromedio
+        );
+
+        JOptionPane.showMessageDialog(configDialog, stats,
+                "Estadísticas de Flota", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void actualizarTablaVehiculos() {
+        if (vehiclesModel != null) {
+            vehiclesModel.setRowCount(0); // Limpiar tabla
+
+            for (Vehiculo vehiculo : flotaVehiculos) {
+                String ubicacion = vehiculo.getUbicacionActual() != null ?
+                        vehiculo.getUbicacionActual().getId() : "N/A";
+
+                vehiclesModel.addRow(new Object[]{
+                        vehiculo.getId(),
+                        vehiculo.getTipo(),
+                        ubicacion,
+                        vehiculo.getEstadoBateria(), // Porcentaje para la barra
+                        vehiculo.getEstado(),
+                        vehiculo.getCapacidadCarga() + " kg",
+                        String.format("%.3f", vehiculo.getConsumoEnergia())
+                });
+            }
+
+            System.out.println("Tabla de vehículos actualizada: " + flotaVehiculos.size() + " vehículos");
+        }
+    }
+
+    // =====================================================================
+// RENDERER PARA BARRA DE BATERÍA
+// =====================================================================
+    class BatteryLevelRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                                                       boolean isSelected, boolean hasFocus, int row, int column) {
+            JProgressBar progressBar = new JProgressBar(0, 100);
+
+            if (value instanceof Double) {
+                double nivel = (Double) value;
+                progressBar.setValue((int) nivel);
+
+                // Color según el nivel de batería
+                if (nivel > 50) {
+                    progressBar.setForeground(new Color(34, 139, 34)); // Verde
+                } else if (nivel > 20) {
+                    progressBar.setForeground(new Color(218, 165, 32)); // Amarillo
+                } else {
+                    progressBar.setForeground(new Color(220, 53, 69)); // Rojo
+                }
+
+                progressBar.setString(String.format("%.1f%%", nivel));
+                progressBar.setStringPainted(true);
+            }
+
+            return progressBar;
+        }
+    }
+
+
     private void agregarEdificioATabla(String id, String nombre, int capacidad, boolean esCentroCarga) {
         Object[] fila;
 
@@ -508,48 +1136,55 @@ public class ConfigurationGUI {
 
         int totalEdificios = campus.getEdificios().size();
         int totalRutas = campus.getRutas().size();
+        int totalVehiculos = flotaVehiculos.size();
 
-        // Confirmación MUY EXPLÍCITA para esta acción destructiva
+        // Confirmación MUY EXPLÍCITA
         JPanel confirmPanel = new JPanel(new BorderLayout());
         JLabel warningLabel = new JLabel(
                 "<html><b style='color:red; font-size:14px;'>ADVERTENCIA: ACCIÓN IRREVERSIBLE</b><br><br>" +
-                        "Está a punto de eliminar <b>TODOS</b> los edificios del campus:<br><br>" +
+                        "Está a punto de eliminar <b>TODOS</b> los elementos del campus:<br><br>" +
                         "• Edificios a eliminar: <b>" + totalEdificios + "</b><br>" +
-                        "• Rutas a eliminar: <b>" + totalRutas + "</b><br><br>" +
+                        "• Rutas a eliminar: <b>" + totalRutas + "</b><br>" +
+                        "• Vehículos a eliminar: <b>" + totalVehiculos + "</b><br><br>" +
                         "¿Está absolutamente seguro?</html>");
 
-        JCheckBox confirmCheck = new JCheckBox("Sí, entiendo que esta acción no se puede deshacer");
+        JCheckBox confirmCheck = new JCheckBox("Sí, entiendo que esta acción eliminará TODO y no se puede deshacer");
 
         confirmPanel.add(warningLabel, BorderLayout.NORTH);
         confirmPanel.add(confirmCheck, BorderLayout.SOUTH);
 
         int confirm = JOptionPane.showConfirmDialog(configDialog,
                 confirmPanel,
-                "ELIMINAR TODOS LOS EDIFICIOS",
+                "ELIMINAR TODO EL CAMPUS",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.ERROR_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION && confirmCheck.isSelected()) {
             try {
-                // Limpiar todo el campus
+                // Limpiar todo
                 campus.limpiarCampus();
+                flotaVehiculos.clear();
 
-                // Limpiar la tabla
+                // Limpiar las tablas
                 buildingsModel.setRowCount(0);
+                if (vehiclesModel != null) {
+                    vehiclesModel.setRowCount(0);
+                }
 
                 // Actualizar combo box
                 actualizarComboBoxCentroPrincipal();
 
                 JOptionPane.showMessageDialog(configDialog,
-                        "Se eliminaron todos los edificios exitosamente:\n\n" +
+                        "Se eliminó todo el campus exitosamente:\n\n" +
                                 "• Edificios eliminados: " + totalEdificios + "\n" +
-                                "• Rutas eliminadas: " + totalRutas + "\n\n" +
-                                "El campus ha sido reiniciado completamente.",
+                                "• Rutas eliminadas: " + totalRutas + "\n" +
+                                "• Vehículos eliminados: " + totalVehiculos + "\n\n" +
+                                "El sistema ha sido reiniciado completamente.",
                         "Eliminación Completa", JOptionPane.INFORMATION_MESSAGE);
 
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(configDialog,
-                        "Error al eliminar todos los edificios: " + ex.getMessage(),
+                        "Error al eliminar todo: " + ex.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
             }
         } else if (confirm == JOptionPane.YES_OPTION && !confirmCheck.isSelected()) {
@@ -561,7 +1196,6 @@ public class ConfigurationGUI {
 
     private void eliminarEdificioSeleccionado(JTable buildingsTable) {
         int selectedRow = buildingsTable.getSelectedRow();
-
         if (selectedRow == -1) {
             JOptionPane.showMessageDialog(configDialog,
                     "Por favor, seleccione un edificio de la tabla para eliminar",
@@ -572,23 +1206,60 @@ public class ConfigurationGUI {
         // Obtener información del edificio seleccionado
         String id = (String) buildingsModel.getValueAt(selectedRow, 0);
         String nombre = (String) buildingsModel.getValueAt(selectedRow, 1);
+        Edificio edificio = campus.getEdificio(id);
 
-        // Confirmación de eliminación
+        // CONTAR VEHÍCULOS AFECTADOS
+        long vehiculosEnEdificio = flotaVehiculos.stream()
+                .filter(v -> v.getUbicacionActual() != null && v.getUbicacionActual().getId().equals(id))
+                .count();
+
+        // CONTAR RUTAS AFECTADAS
+        long rutasConEdificio = campus.getRutas().stream()
+                .filter(r -> r.getOrigen().getId().equals(id) || r.getDestino().getId().equals(id))
+                .count();
+
+        // Confirmación de eliminación MÁS DETALLADA
+        StringBuilder mensajeConfirmacion = new StringBuilder();
+        mensajeConfirmacion.append("¿Está seguro de eliminar el siguiente edificio?\n\n")
+                .append("ID: ").append(id).append("\n")
+                .append("Nombre: ").append(nombre).append("\n\n");
+
+        if (vehiculosEnEdificio > 0) {
+            mensajeConfirmacion.append("AFECTARÁ ").append(vehiculosEnEdificio)
+                    .append(" VEHÍCULO(S) QUE SERÁN ELIMINADOS\n");
+        }
+
+        if (rutasConEdificio > 0) {
+            mensajeConfirmacion.append("ELIMINARÁ ").append(rutasConEdificio)
+                    .append(" RUTA(S) CONECTADAS\n");
+        }
+
+        mensajeConfirmacion.append("\nEsta acción no se puede deshacer.");
+
         int confirm = JOptionPane.showConfirmDialog(configDialog,
-                "¿Está seguro de eliminar el siguiente edificio?\n\n" +
-                        "ID: " + id + "\n" +
-                        "Nombre: " + nombre + "\n\n" +
-                        "Esta acción también eliminará todas las rutas conectadas a este edificio.",
-                "Confirmar Eliminación",
+                mensajeConfirmacion.toString(),
+                "Confirmar Eliminación de Edificio",
                 JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
         if (confirm == JOptionPane.YES_OPTION) {
             try {
+                // ELIMINAR VEHÍCULOS ASOCIADOS AL EDIFICIO
+                int vehiculosEliminados = 0;
+                Iterator<Vehiculo> iterator = flotaVehiculos.iterator();
+                while (iterator.hasNext()) {
+                    Vehiculo vehiculo = iterator.next();
+                    if (vehiculo.getUbicacionActual() != null &&
+                            vehiculo.getUbicacionActual().getId().equals(id)) {
+                        iterator.remove();
+                        vehiculosEliminados++;
+                    }
+                }
+
                 // Verificar si es el centro principal
                 boolean eraCentroPrincipal = campus.getCentroPrincipal() != null &&
                         campus.getCentroPrincipal().getId().equals(id);
 
-                // Eliminar del campus
+                // Eliminar del campus (esto ya elimina las rutas automáticamente)
                 boolean exito = campus.eliminarEdificio(id);
 
                 if (exito) {
@@ -598,14 +1269,27 @@ public class ConfigurationGUI {
                     // Actualizar combo box
                     actualizarComboBoxCentroPrincipal();
 
-                    // Mensaje informativo
-                    String mensaje = "Edificio '" + nombre + "' eliminado exitosamente";
+                    // Actualizar tabla de vehículos
+                    actualizarTablaVehiculos();
+
+                    // Mensaje informativo DETALLADO
+                    StringBuilder mensajeExito = new StringBuilder();
+                    mensajeExito.append("Edificio '").append(nombre).append("' eliminado exitosamente");
+
+                    if (vehiculosEliminados > 0) {
+                        mensajeExito.append("\n• Vehículos eliminados: ").append(vehiculosEliminados);
+                    }
+
+                    if (rutasConEdificio > 0) {
+                        mensajeExito.append("\n• Rutas eliminadas: ").append(rutasConEdificio);
+                    }
+
                     if (eraCentroPrincipal) {
-                        mensaje += "\nEste edificio era el centro principal. Debe asignar un nuevo centro principal.";
+                        mensajeExito.append("\nEste edificio era el centro principal. Debe asignar un nuevo centro principal.");
                     }
 
                     JOptionPane.showMessageDialog(configDialog,
-                            mensaje,
+                            mensajeExito.toString(),
                             "Eliminación Exitosa", JOptionPane.INFORMATION_MESSAGE);
 
                 } else {
@@ -755,6 +1439,9 @@ public class ConfigurationGUI {
         deleteRouteBtn.setContentAreaFilled(true);
         deleteRouteBtn.setOpaque(true);
         deleteRouteBtn.setBorderPainted(false);
+        clearAllRoutesBtn.setContentAreaFilled(true);
+        clearAllRoutesBtn.setOpaque(true);
+        clearAllRoutesBtn.setBorderPainted(false);
 
         tableControls.add(refreshRoutesBtn);
         tableControls.add(deleteRouteBtn);
@@ -1010,6 +1697,12 @@ public class ConfigurationGUI {
         refreshSummaryBtn.setForeground(Color.WHITE);
         validateSystemBtn.setBackground(new Color(218, 165, 32));
         validateSystemBtn.setForeground(Color.WHITE);
+        refreshSummaryBtn.setContentAreaFilled(true);
+        refreshSummaryBtn.setOpaque(true);
+        refreshSummaryBtn.setBorderPainted(false);
+        validateSystemBtn.setContentAreaFilled(true);
+        validateSystemBtn.setOpaque(true);
+        validateSystemBtn.setBorderPainted(false);
 
         controlsPanel.add(refreshSummaryBtn);
         controlsPanel.add(validateSystemBtn);
@@ -1075,6 +1768,24 @@ public class ConfigurationGUI {
         }
         sb.append("\n");
 
+        sb.append("FLOTA DE VEHÍCULOS: ").append(flotaVehiculos.size()).append("\n");
+        sb.append("----------------------------------------------\n");
+
+        if (!flotaVehiculos.isEmpty()) {
+            long drones = flotaVehiculos.stream().filter(v -> v instanceof Dron).count();
+            long rovers = flotaVehiculos.stream().filter(v -> v instanceof Rover).count();
+            long ebikes = flotaVehiculos.stream().filter(v -> v instanceof EBike).count();
+
+            sb.append(String.format("Drones: %d | Rovers: %d | E-Bikes: %d\n", drones, rovers, ebikes));
+            sb.append(String.format("Disponibles: %d | En entrega: %d | En carga: %d\n",
+                    flotaVehiculos.stream().filter(Vehiculo::estaDisponible).count(),
+                    flotaVehiculos.stream().filter(v -> "EN_ENTREGA".equals(v.getEstado())).count(),
+                    flotaVehiculos.stream().filter(v -> "EN_CARGA".equals(v.getEstado())).count()));
+        } else {
+            sb.append("No hay vehículos configurados\n");
+        }
+        sb.append("\n");
+
         // Estadísticas del sistema
         sb.append("ESTADÍSTICAS DEL SISTEMA\n");
         sb.append("----------------------------------------------\n");
@@ -1105,6 +1816,22 @@ public class ConfigurationGUI {
                     centrosCarga, campus.getEdificios().size()));
         }
 
+        sb.append("INFORMACIÓN DE PERSISTENCIA\n");
+        sb.append("----------------------------------------------\n");
+        boolean datosExisten = Persistencia.PersistenceManager.existenDatosGuardados();
+        sb.append("Datos guardados: ").append(datosExisten ? "SÍ" : "NO").append("\n");
+
+        if (datosExisten) {
+            File campusFile = new File("campus_data.dat");
+            File vehiclesFile = new File("vehicles_data.dat");
+
+            sb.append(String.format("Tamaño archivo campus: %.1f KB\n", campusFile.length() / 1024.0));
+            sb.append(String.format("Tamaño archivo vehículos: %.1f KB\n", vehiclesFile.length() / 1024.0));
+            sb.append(String.format("Última modificación: %s\n",
+                    new java.util.Date(campusFile.lastModified())));
+        }
+        sb.append("\n");
+
         sb.append("\n==============================================\n");
         sb.append("              FIN DEL RESUMEN\n");
         sb.append("==============================================\n");
@@ -1123,14 +1850,14 @@ public class ConfigurationGUI {
             validation.append("ERROR: No hay edificios configurados\n");
             systemValid = false;
         } else {
-            validation.append("✓ ").append(campus.getEdificios().size()).append(" edificios configurados\n");
+            validation.append("").append(campus.getEdificios().size()).append(" edificios configurados\n");
         }
 
         // Validar rutas
         if (campus.getRutas().isEmpty()) {
-            validation.append("⚠ ADVERTENCIA: No hay rutas configuradas\n");
+            validation.append("ADVERTENCIA: No hay rutas configuradas\n");
         } else {
-            validation.append("✓ ").append(campus.getRutas().size()).append(" rutas configuradas\n");
+            validation.append("").append(campus.getRutas().size()).append(" rutas configuradas\n");
         }
 
         // Validaciones específicas del modo
@@ -1139,20 +1866,20 @@ public class ConfigurationGUI {
                 validation.append("ERROR: No se ha configurado el centro principal\n");
                 systemValid = false;
             } else {
-                validation.append("✓ Centro principal configurado: ").append(campus.getCentroPrincipal().getNombre()).append("\n");
+                validation.append("Centro principal configurado: ").append(campus.getCentroPrincipal().getNombre()).append("\n");
             }
         } else {
             long centrosCarga = campus.getEdificios().stream().filter(Edificio::isTieneCentroCarga).count();
             if (centrosCarga == 0) {
                 validation.append("ADVERTENCIA: Ningún edificio tiene centro de carga\n");
             } else {
-                validation.append("✓ ").append(centrosCarga).append(" centros de carga configurados\n");
+                validation.append(centrosCarga).append(" centros de carga configurados\n");
             }
         }
 
         // Validar conectividad
         if (campus.getEdificios().size() >= 2 && campus.getRutas().size() < campus.getEdificios().size() - 1) {
-            validation.append("⚠ ADVERTENCIA: Baja conectividad entre edificios\n");
+            validation.append("ADVERTENCIA: Baja conectividad entre edificios\n");
         }
 
         validation.append("\nSISTEMA: ").append(systemValid ? "VÁLIDO" : "NO VÁLIDO");
@@ -1166,18 +1893,53 @@ public class ConfigurationGUI {
 
         JButton saveButton = new JButton("Guardar Configuración");
         JButton cancelButton = new JButton("Cancelar");
+        JButton loadButton = new JButton("Cargar Datos");
 
         saveButton.setBackground(new Color(34, 139, 34));
         saveButton.setForeground(Color.WHITE);
         cancelButton.setBackground(new Color(220, 53, 69));
         cancelButton.setForeground(Color.WHITE);
+        loadButton.setBackground(new Color(70, 130, 180));
+        loadButton.setForeground(Color.WHITE);
+        saveButton.setContentAreaFilled(true);
+        saveButton.setOpaque(true);
+        saveButton.setBorderPainted(false);
+        cancelButton.setContentAreaFilled(true);
+        cancelButton.setOpaque(true);
+        cancelButton.setBorderPainted(false);
+        loadButton.setContentAreaFilled(true);
+        loadButton.setOpaque(true);
+        loadButton.setBorderPainted(false);
 
         saveButton.addActionListener(e -> {
-            if (validateConfiguration()) {
+            //if (validateConfiguration()) {
+            try {
+                Persistencia.PersistenceManager.guardarCampus(campus);
+                Persistencia.PersistenceManager.guardarFlota(flotaVehiculos);
+                Persistencia.PersistenceManager.guardarConfiguracion(
+                        campusMode.toString(),
+                        "Usuario",
+                        java.time.LocalDateTime.now()
+                );
+
                 JOptionPane.showMessageDialog(configDialog,
-                        "Configuración guardada exitosamente", "Éxito", JOptionPane.INFORMATION_MESSAGE);
+                        "Configuración guardada exitosamente\n" +
+                                "• Campus: " + campus.getEdificios().size() + " edificios\n" +
+                                "• Rutas: " + campus.getRutas().size() + " rutas\n" +
+                                "• Vehículos: " + flotaVehiculos.size() + " en flota",
+                        "Persistencia Exitosa", JOptionPane.INFORMATION_MESSAGE);
                 configDialog.dispose();
+
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Error guardando datos: " + ex.getMessage(),
+                        "Error de Persistencia", JOptionPane.ERROR_MESSAGE);
             }
+        }
+        );
+
+        loadButton.addActionListener(e -> {
+            cargarDatosPersistentes();
         });
 
         cancelButton.addActionListener(e -> {
@@ -1189,12 +1951,61 @@ public class ConfigurationGUI {
             }
         });
 
+        footerPanel.add(loadButton);
         footerPanel.add(cancelButton);
         footerPanel.add(saveButton);
 
         configDialog.add(footerPanel, BorderLayout.SOUTH);
     }
 
+    private void cargarDatosPersistentes() {
+        if (!Persistencia.PersistenceManager.existenDatosGuardados()) {
+            JOptionPane.showMessageDialog(configDialog,
+                    "No hay datos guardados previamente",
+                    "Sin Datos", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(configDialog,
+                "¿Cargar datos guardados?\n\n" +
+                        "Esto reemplazará la configuración actual.",
+                "Cargar Datos Persistentes",
+                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            try {
+                Campus campusCargado = Persistencia.PersistenceManager.cargarCampus();
+                List<Vehiculo> flotaCargada = Persistencia.PersistenceManager.cargarFlota();
+
+                if (campusCargado != null) {
+                    this.campus = campusCargado;
+                    actualizarTablaCompleta();
+                    actualizarComboBoxCentroPrincipal();
+                }
+
+                if (flotaCargada != null) {
+                    this.flotaVehiculos = flotaCargada;
+                    // Actualizar tabla de vehículos si existe
+                    if (vehiclesModel != null) {
+                        actualizarTablaVehiculos();
+                    }
+                }
+
+                JOptionPane.showMessageDialog(configDialog,
+                        "Datos cargados exitosamente:\n" +
+                                "• " + campus.getEdificios().size() + " edificios\n" +
+                                "• " + campus.getRutas().size() + " rutas\n" +
+                                "• " + flotaVehiculos.size() + " vehículos",
+                        "Datos Cargados", JOptionPane.INFORMATION_MESSAGE);
+
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(configDialog,
+                        "Error cargando datos: " + ex.getMessage(),
+                        "Error de Carga", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+/*
     private boolean validateConfiguration() {
         // Validaciones básicas
         if (campus.getEdificios().isEmpty()) {
@@ -1213,5 +2024,5 @@ public class ConfigurationGUI {
         }
 
         return true;
-    }
+    } */
 }
