@@ -33,8 +33,6 @@ public class Dron extends Vehiculo {
 
     @Override
     public double estimateEnergyCost(double distancia) {
-        // Drones consumen más energía en despegue/aterrizaje
-        double consumoBase = super.estimateEnergyCost(distancia);
-        return consumoBase + 0.1; // +0.1 kWh extra por maniobras
+        return distancia * 0.15;
     }
 }

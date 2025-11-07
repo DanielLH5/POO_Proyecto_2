@@ -168,23 +168,23 @@ public class GestionPedidos {
         System.out.println("Procesamiento completado: " + pedidosAsignados + " pedidos asignados");
     }
 
-    // Método mejorado para seleccionar vehículo considerando carga acumulada
     private Vehiculo seleccionarVehiculoConCarga(Pedido pedido, Map<String, Double> cargaAcumulada) {
         return flotaVehiculos.stream()
                 .filter(v -> v.estaDisponible())
                 .filter(v -> puedeTransportarConCarga(v, pedido.getPeso(), cargaAcumulada.getOrDefault(v.getId(), 0.0)))
-                .filter(v -> v.getEstadoBateria() > 20)
-                // Priorizar vehículos con menos carga acumulada para distribución equitativa
+                .filter(v -> tieneBateriaSuficienteParaPedido(v, pedido)) // ← NUEVA VALIDACIÓN MEJORADA
                 .sorted((v1, v2) -> {
+                    // Primero priorizar por batería (mayor primero)
+                    int compBateria = Double.compare(v2.getEstadoBateria(), v1.getEstadoBateria());
+                    if (compBateria != 0) return compBateria;
+
+                    // Luego por carga acumulada (menor porcentaje de uso primero)
                     double carga1 = cargaAcumulada.getOrDefault(v1.getId(), 0.0);
                     double carga2 = cargaAcumulada.getOrDefault(v2.getId(), 0.0);
                     double capacidad1 = v1.getCapacidadCarga();
                     double capacidad2 = v2.getCapacidadCarga();
-
-                    // Calcular porcentaje de uso (carga actual / capacidad total)
                     double porcentajeUso1 = carga1 / capacidad1;
                     double porcentajeUso2 = carga2 / capacidad2;
-
                     return Double.compare(porcentajeUso1, porcentajeUso2);
                 })
                 .findFirst()
@@ -242,6 +242,44 @@ public class GestionPedidos {
                     .filter(ed -> !ed.getId().equals(edificioId))
                     .map(Edificio::getId)
                     .collect(Collectors.toList());
+        }
+    }
+
+    private boolean tieneBateriaSuficienteParaPedido(Vehiculo vehiculo, Pedido pedido) {
+        double bateriaActual = vehiculo.getEstadoBateria();
+
+        // Verificación básica de nivel mínimo
+        if (bateriaActual <= 20) {
+            return false;
+        }
+
+        // Estimación de consumo para la ruta
+        try {
+            double distancia = calcularDistanciaEstimada(pedido.getOrigen(), pedido.getDestino());
+            double consumoEstimado = vehiculo.estimateEnergyCost(distancia);
+            double porcentajeConsumo = (consumoEstimado / 10.0) * 100; // Convertir a porcentaje
+
+            // Dejar al menos 15% de batería de reserva después del viaje
+            double bateriaDespuesViaje = bateriaActual - porcentajeConsumo;
+            return bateriaDespuesViaje >= 15.0;
+
+        } catch (Exception e) {
+            // Si no se puede calcular, usar verificación básica mejorada
+            return bateriaActual > 35; // Mínimo 35% si no se puede estimar
+        }
+    }
+
+    private double calcularDistanciaEstimada(Edificio origen, Edificio destino) {
+        if (origen == null || destino == null) return 2.0;
+
+        // Simulación de distancia - similar a la del GestorSimulador
+        try {
+            int hashOrigen = Math.abs(origen.getId().hashCode()) % 10;
+            int hashDestino = Math.abs(destino.getId().hashCode()) % 10;
+            double distancia = 0.5 + (Math.abs(hashOrigen - hashDestino) * 0.3);
+            return Math.max(0.5, Math.min(3.0, distancia));
+        } catch (Exception e) {
+            return 2.0; // Distancia por defecto
         }
     }
 

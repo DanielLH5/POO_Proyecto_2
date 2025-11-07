@@ -5,7 +5,7 @@ import model.campus.Edificio;
 public class Rover extends Vehiculo {
 
     public Rover(String id, Edificio ubicacionInicial) {
-        super(id, 5.0, 0.2, 20.0, 0.3, ubicacionInicial); // Mayor capacidad que drone
+        super(id, 5.0, 0.2, 20.0, 1.2, ubicacionInicial); // Mayor capacidad que drone
     }
 
     @Override
@@ -31,9 +31,9 @@ public class Rover extends Vehiculo {
         registrarEvento("Entrega de pedido completada con éxito");
     }
 
+    // En Rover.java
     @Override
     public double estimateEnergyCost(double distancia) {
-        // Rovers son más eficientes en terreno plano
-        return distancia * getConsumoEnergia();
+        return distancia * 1.2; // Rover consume 1.2 kWh/km
     }
 }

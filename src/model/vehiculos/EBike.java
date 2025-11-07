@@ -32,7 +32,6 @@ public class EBike extends Vehiculo {
 
     @Override
     public double estimateEnergyCost(double distancia) {
-        // AGV son muy eficientes en rutas predefinidas
-        return distancia * getConsumoEnergia() * 0.9;
+        return distancia * 0.08;
     }
 }

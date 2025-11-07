@@ -1,5 +1,6 @@
 package model.sistema;
 
+import model.campus.Edificio;
 import model.vehiculos.Vehiculo;
 import model.campus.Campus;
 import model.pedidos.Pedido;
@@ -11,11 +12,13 @@ public class GestorSimulador {
     private List<Vehiculo> flota;
     private Campus campus;
     private List<Pedido> pedidos;
+    private GestorEnergia gestorEnergia; // ← NUEVA REFERENCIA
 
     public GestorSimulador(List<Vehiculo> flota, Campus campus) {
         this.flota = flota;
         this.campus = campus;
         this.pedidos = PersistenceManager.cargarPedidos();
+        this.gestorEnergia = new GestorEnergia(flota); // ← INICIALIZAR
         sincronizarPedidosConVehiculos();
     }
 
@@ -53,7 +56,7 @@ public class GestorSimulador {
         System.out.println("Sincronización completada");
     }
 
-    // SIMULAR MOVIMIENTO DE TODOS LOS VEHÍCULOS ACTIVOS - CORREGIDO
+    // SIMULAR MOVIMIENTO DE TODOS LOS VEHÍCULOS ACTIVOS - CON GESTIÓN ENERGÉTICA INTEGRADA
     public void simularMovimientoFlota() {
         // Recargar pedidos actualizados antes de simular
         this.pedidos = PersistenceManager.cargarPedidos();
@@ -76,17 +79,72 @@ public class GestorSimulador {
             if (pedido != null && !pedido.estaCompletado()) {
                 System.out.println("\n--- " + vehiculo.getId() + " en movimiento ---");
                 System.out.println("Pedido: " + pedido.getId());
-                System.out.println("Ruta: " + pedido.getOrigen().getId() + " -- " + pedido.getDestino().getId());
+                System.out.println("Ruta: " + pedido.getOrigen().getId() + " → " + pedido.getDestino().getId());
+                System.out.println("Batería inicial: " + vehiculo.getEstadoBateria() + "%");
 
-                // Usar el método polimórfico de entrega
-                vehiculo.realizarEntrega(pedido.getDestino());
+                // CALCULAR DISTANCIA Y CONSUMO
+                double distancia = calcularDistancia(vehiculo.getUbicacionActual(), pedido.getDestino());
+                double consumoEstimado = gestorEnergia.estimarConsumoRuta(vehiculo, distancia);
 
-                System.out.println("Movimiento completado para " + vehiculo.getId());
+                System.out.println("Distancia: " + distancia + " km");
+                System.out.println("Consumo estimado: " + consumoEstimado + " kWh");
+
+                // VERIFICAR BATERÍA SUFICIENTE
+                if (!gestorEnergia.tieneCargaSuficiente(vehiculo, distancia)) {
+                    System.out.println(vehiculo.getId() + " no tiene suficiente batería para esta ruta");
+                    System.out.println("Batería actual: " + vehiculo.getEstadoBateria() + "%");
+                    vehiculo.cambiarEstado("EN_CARGA");
+                    continue;
+                }
+
+                // REALIZAR VIAJE CON CONSUMO ENERGÉTICO
+                boolean viajeExitoso = vehiculo.realizarViaje(distancia);
+
+                if (viajeExitoso) {
+                    // REGISTRAR CONSUMO EN EL GESTOR DE ENERGÍA
+                    gestorEnergia.registrarConsumo(vehiculo, consumoEstimado);
+
+                    System.out.println("Viaje exitoso - Consumo real: " + consumoEstimado + " kWh");
+                    System.out.println("Batería restante: " + vehiculo.getEstadoBateria() + "%");
+
+                    // VERIFICAR SI NECESITA RECARGA DESPUÉS DEL VIAJE
+                    if (vehiculo.getEstadoBateria() < gestorEnergia.getPoliticaRecarga().getNivelRecargaAutomatica()) {
+                        System.out.println(vehiculo.getId() + " necesita recarga (" +
+                                vehiculo.getEstadoBateria() + "%)");
+                        vehiculo.cambiarEstado("EN_CARGA");
+                    }
+
+                    // COMPLETAR ENTREGA
+                    vehiculo.realizarEntrega(pedido.getDestino());
+                    System.out.println("Entrega completada para " + pedido.getId());
+                } else {
+                    System.out.println("Error en el viaje - no se pudo completar la entrega");
+                }
             }
         }
 
         // GUARDAR CAMBIOS EN PERSISTENCIA
         guardarEstadoActualizado();
+
+        // MOSTRAR REPORTE ENERGÉTICO
+        mostrarReporteEnergetico();
+    }
+
+    // MÉTODO PARA CALCULAR DISTANCIA ENTRE EDIFICIOS
+    private double calcularDistancia(Edificio origen, Edificio destino) {
+        if (origen == null || destino == null) return 1.5; // Distancia por defecto
+
+        // En un sistema real, aquí calcularías la distancia real usando coordenadas
+        // Por ahora, simulamos distancias basadas en los IDs de los edificios
+        try {
+            // Simular distancia diferente según los edificios
+            int hashOrigen = Math.abs(origen.getId().hashCode()) % 10;
+            int hashDestino = Math.abs(destino.getId().hashCode()) % 10;
+            double distancia = 0.5 + (Math.abs(hashOrigen - hashDestino) * 0.3);
+            return Math.max(0.5, Math.min(3.0, distancia)); // Entre 0.5 y 3.0 km
+        } catch (Exception e) {
+            return 1.5; // Distancia por defecto
+        }
     }
 
     // GUARDAR ESTADO ACTUALIZADO EN PERSISTENCIA
@@ -121,7 +179,29 @@ public class GestorSimulador {
         System.out.println("Estado guardado en persistencia");
     }
 
-    // OBTENER ESTADO ACTUAL DE LA FLOTA
+    // MOSTRAR REPORTE ENERGÉTICO DESPUÉS DE LA SIMULACIÓN
+    private void mostrarReporteEnergetico() {
+        System.out.println("\n=== REPORTE ENERGÉTICO DE LA SIMULACIÓN ===");
+
+        GestorEnergia.EstadisticasEnergia stats = gestorEnergia.getEstadisticas();
+        System.out.println("Batería promedio de la flota: " + String.format("%.1f", stats.bateriaPromedio) + "%");
+        System.out.println("Vehículos con batería baja: " + stats.vehiculosBajaBateria);
+        System.out.println("Consumo total acumulado: " + String.format("%.1f", stats.consumoTotal) + " kWh");
+
+        // Mostrar vehículos que necesitan recarga
+        List<Vehiculo> necesitaRecarga = gestorEnergia.getVehiculosBateriaBaja();
+        if (!necesitaRecarga.isEmpty()) {
+            System.out.println("\nVEHÍCULOS QUE NECESITAN RECARGA:");
+            for (Vehiculo vehiculo : necesitaRecarga) {
+                System.out.println("  - " + vehiculo.getId() + " (" + vehiculo.getTipo() +
+                        "): " + String.format("%.1f", vehiculo.getEstadoBateria()) + "%");
+            }
+        }
+
+        System.out.println("============================================\n");
+    }
+
+    // OBTENER ESTADO ACTUAL DE LA FLOTA - ACTUALIZADO CON INFO ENERGÉTICA
     public void mostrarEstadoFlota() {
         System.out.println("ESTADO ACTUAL DE LA FLOTA:");
         System.out.println("Total vehículos: " + flota.size());
@@ -137,6 +217,11 @@ public class GestorSimulador {
         System.out.println("En carga: " + enCarga);
         System.out.println("Fuera de servicio: " + (flota.size() - disponibles - enPreparacion - enEntrega - enCarga));
 
+        // Mostrar información energética
+        GestorEnergia.EstadisticasEnergia stats = gestorEnergia.getEstadisticas();
+        System.out.println("Batería promedio: " + String.format("%.1f", stats.bateriaPromedio) + "%");
+        System.out.println("Consumo total: " + String.format("%.1f", stats.consumoTotal) + " kWh");
+
         // Mostrar vehículos con pedidos asignados
         List<Vehiculo> conPedidos = flota.stream()
                 .filter(v -> v.getPedidoActual() != null)
@@ -147,8 +232,19 @@ public class GestorSimulador {
             Pedido pedido = vehiculo.getPedidoActual();
             System.out.println("  " + vehiculo.getId() + " - " + pedido.getId() +
                     " (" + pedido.getOrigen().getId() + " → " + pedido.getDestino().getId() +
-                    ") - Estado: " + pedido.getEstado());
+                    ") - Estado: " + pedido.getEstado() +
+                    " - Batería: " + String.format("%.1f", vehiculo.getEstadoBateria()) + "%");
         }
+    }
+
+    // RECARGAR VEHÍCULOS AUTOMÁTICAMENTE SEGÚN POLÍTICA
+    public void ejecutarRecargaAutomatica() {
+        System.out.println("EJECUTANDO RECARGA AUTOMÁTICA...");
+        int vehiculosRecargados = gestorEnergia.recargarVehiculosBateriaBaja();
+        System.out.println(vehiculosRecargados + " vehículos recargados automáticamente");
+
+        // Actualizar persistencia
+        PersistenceManager.guardarFlota(flota);
     }
 
     // FORZAR SINCRONIZACIÓN MANUAL - CORREGIDO
@@ -187,5 +283,10 @@ public class GestorSimulador {
         this.pedidos = PersistenceManager.cargarPedidos();
 
         System.out.println("Actualización desde persistencia completada");
+    }
+
+    // GETTER para GestorEnergia (para que la GUI pueda acceder)
+    public GestorEnergia getGestorEnergia() {
+        return gestorEnergia;
     }
 }

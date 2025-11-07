@@ -79,17 +79,11 @@ public class DeliverySystemGUI {
                 new Color(147, 112, 219));
         statsButton.addActionListener(e -> openStatisticsWindow());
 
-        // Botón 6: Log del Sistema
-        JButton logButton = createMenuButton("LOG DEL SISTEMA", "Eventos y Notificaciones",
-                new Color(47, 79, 79));
-        logButton.addActionListener(e -> openLogWindow());
-
         menuPanel.add(configButton);
         menuPanel.add(ordersButton);
         menuPanel.add(vehiclesButton);
         menuPanel.add(energyButton);
         menuPanel.add(statsButton);
-        menuPanel.add(logButton);
 
         mainFrame.add(menuPanel, BorderLayout.CENTER);
     }
@@ -160,15 +154,11 @@ public class DeliverySystemGUI {
     }
 
     private void openEnergyWindow() {
-        //new EnergyGUI(mainFrame);
+        new ManejoEnergiaGUI(mainFrame);
     }
 
     private void openStatisticsWindow() {
         //new StatisticsGUI(mainFrame);
-    }
-
-    private void openLogWindow() {
-        //new LogGUI(mainFrame);
     }
 
     public static void main(String[] args) {
