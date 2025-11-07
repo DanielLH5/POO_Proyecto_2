@@ -6,7 +6,9 @@ import model.vehiculos.Vehiculo;
 import Persistencia.PersistenceManager;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class GestionPedidos {
@@ -111,38 +113,112 @@ public class GestionPedidos {
         return pedidosGenerados;
     }
 
-    // Procesar pedidos pendientes (asignar vehículos)
+    // Procesar pedidos pendientes (asignar vehículos) - VERSIÓN CORREGIDA
     public void procesarPedidosPendientes() {
         if (flotaVehiculos == null || flotaVehiculos.isEmpty()) {
             throw new IllegalStateException("No hay vehículos disponibles en la flota");
         }
 
+        // Mapa para llevar registro de la carga acumulada por vehículo
+        Map<String, Double> cargaAcumuladaPorVehiculo = new HashMap<>();
+
+        // Obtener todos los pedidos pendientes sin removerlos de la cola
+        List<Pedido> pedidosPendientes = new ArrayList<>();
+        ColaPedidos colaTemporal = new ColaPedidos();
+
+        // Extraer pedidos manteniendo el orden
         while (colaPedidos.hayPedidosPendientes()) {
-            Pedido pedido = colaPedidos.verSiguientePedido();
+            Pedido pedido = colaPedidos.obtenerSiguientePedido();
+            pedidosPendientes.add(pedido);
+            colaTemporal.agregarPedido(pedido);
+        }
 
-            // Buscar vehículo adecuado
-            Vehiculo vehiculoAdecuado = seleccionarVehiculoOptimo(pedido);
+        // Restaurar la cola original
+        this.colaPedidos = colaTemporal;
 
-            if (vehiculoAdecuado != null) {
-                // Remover de la cola y asignar vehículo
-                pedido = colaPedidos.obtenerSiguientePedido();
-                pedido.asignarVehiculo(vehiculoAdecuado);
-            } else {
-                // No hay vehículos disponibles, romper el ciclo
-                break;
+        // Procesar pedidos ordenados por peso descendente (para optimizar carga)
+        pedidosPendientes.sort((p1, p2) -> Double.compare(p2.getPeso(), p1.getPeso()));
+
+        int pedidosAsignados = 0;
+        for (Pedido pedido : pedidosPendientes) {
+            // Solo procesar si el pedido sigue pendiente
+            if (pedido.estaPendiente()) {
+                // Buscar vehículo adecuado considerando carga acumulada
+                Vehiculo vehiculoAdecuado = seleccionarVehiculoConCarga(pedido, cargaAcumuladaPorVehiculo);
+
+                if (vehiculoAdecuado != null) {
+                    // Remover de la cola y asignar vehículo
+                    colaPedidos.removerPedido(pedido);
+                    pedido.asignarVehiculo(vehiculoAdecuado);
+                    pedidosAsignados++;
+
+                    // Actualizar carga acumulada
+                    String vehiculoId = vehiculoAdecuado.getId();
+                    double cargaActual = cargaAcumuladaPorVehiculo.getOrDefault(vehiculoId, 0.0);
+                    cargaAcumuladaPorVehiculo.put(vehiculoId, cargaActual + pedido.getPeso());
+
+                    System.out.println("Asignado: " + pedido.getId() + " (" + pedido.getPeso() + "kg) a " +
+                            vehiculoId + " - Carga acumulada: " + (cargaActual + pedido.getPeso()) + "kg");
+                }
             }
         }
 
         // Guardar cambios
         guardarEstado();
+        System.out.println("Procesamiento completado: " + pedidosAsignados + " pedidos asignados");
     }
 
-    // Seleccionar vehículo óptimo para un pedido
+    // Método mejorado para seleccionar vehículo considerando carga acumulada
+    private Vehiculo seleccionarVehiculoConCarga(Pedido pedido, Map<String, Double> cargaAcumulada) {
+        return flotaVehiculos.stream()
+                .filter(v -> v.estaDisponible())
+                .filter(v -> puedeTransportarConCarga(v, pedido.getPeso(), cargaAcumulada.getOrDefault(v.getId(), 0.0)))
+                .filter(v -> v.getEstadoBateria() > 20)
+                // Priorizar vehículos con menos carga acumulada para distribución equitativa
+                .sorted((v1, v2) -> {
+                    double carga1 = cargaAcumulada.getOrDefault(v1.getId(), 0.0);
+                    double carga2 = cargaAcumulada.getOrDefault(v2.getId(), 0.0);
+                    double capacidad1 = v1.getCapacidadCarga();
+                    double capacidad2 = v2.getCapacidadCarga();
+
+                    // Calcular porcentaje de uso (carga actual / capacidad total)
+                    double porcentajeUso1 = carga1 / capacidad1;
+                    double porcentajeUso2 = carga2 / capacidad2;
+
+                    return Double.compare(porcentajeUso1, porcentajeUso2);
+                })
+                .findFirst()
+                .orElse(null);
+    }
+
+    // Método para verificar capacidad considerando carga acumulada
+    private boolean puedeTransportarConCarga(Vehiculo vehiculo, double pesoPedido, double cargaAcumulada) {
+        double capacidadMaxima = vehiculo.getCapacidadCarga();
+        double cargaTotal = cargaAcumulada + pesoPedido;
+        return cargaTotal <= capacidadMaxima;
+    }
+
+    // Método auxiliar para obtener capacidad máxima (usando el método existente de Vehiculo)
+    private double getCapacidadMaxima(Vehiculo vehiculo) {
+        return vehiculo.getCapacidadCarga();
+    }
+
     private Vehiculo seleccionarVehiculoOptimo(Pedido pedido) {
         return flotaVehiculos.stream()
-                .filter(v -> estaDisponible(v))
-                .filter(v -> puedeTransportar(v, pedido.getPeso()))
-                .filter(v -> getBateria(v) > 20) // Mínimo 20% de batería
+                .filter(v -> v.estaDisponible())
+                .filter(v -> v.puedeTransportar(pedido.getPeso()))
+                .filter(v -> v.getEstadoBateria() > 20)
+                // Priorizar vehículos con más batería y menos uso
+                .sorted((v1, v2) -> {
+                    // Primero por batería (mayor primero)
+                    int compBateria = Double.compare(v2.getEstadoBateria(), v1.getEstadoBateria());
+                    if (compBateria != 0) return compBateria;
+
+                    // Luego por capacidad disponible (mayor primero)
+                    double cap1 = v1.getCapacidadCarga();
+                    double cap2 = v2.getCapacidadCarga();
+                    return Double.compare(cap2, cap1);
+                })
                 .findFirst()
                 .orElse(null);
     }

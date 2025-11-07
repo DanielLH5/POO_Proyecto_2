@@ -5,31 +5,34 @@ import model.campus.Edificio;
 public class EBike extends Vehiculo {
 
     public EBike(String id, Edificio ubicacionInicial) {
-        super(id,
-                5.0,    // capacidadBateria (kWh) - batería más pequeña
-                0.5,    // nivelMinimoBateria (kWh)
-                10.0,   // capacidadCarga (kg) - carga media
-                0.08,   // consumoEnergia (kWh/km) - muy eficiente
-                ubicacionInicial);
+        super(id, 5.0, 0.5, 10.0, 0.08, ubicacionInicial); // Mayor capacidad
     }
 
     @Override
     public String getTipo() {
-        return "E-BIKE";
+        return "EBike";
     }
 
     @Override
     public double calcularVelocidadPromedio() {
-        return 18.0; // km/h - velocidad intermedia
-    }
-
-    // E-bikes pueden usar ciclovías
-    public boolean puedeUsarCiclovias() {
-        return true;
+        return 18.0;
     }
 
     @Override
-    public String toString() {
-        return "E-BIKE " + id + " (" + Math.round(getEstadoBateria()) + "%) - " + getEstado();
+    public void realizarEntrega(Edificio destino) {
+        registrarEvento("EBike iniciando entrega de pedido");
+        registrarEvento("Velocidad promedio: " + calcularVelocidadPromedio() + " km/h");
+        registrarEvento("Capacidad de carga: " + getCapacidadCarga() + " kg");
+        registrarEvento("Modo: ECO - Manteniendo Consumo");
+
+        simularMovimiento(destino);
+
+        registrarEvento("Entrega de pedido completada con éxito");
+    }
+
+    @Override
+    public double estimateEnergyCost(double distancia) {
+        // AGV son muy eficientes en rutas predefinidas
+        return distancia * getConsumoEnergia() * 0.9;
     }
 }
