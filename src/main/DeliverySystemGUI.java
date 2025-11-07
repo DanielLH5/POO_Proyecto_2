@@ -156,7 +156,7 @@ public class DeliverySystemGUI {
     }
 
     private void openVehiclesWindow() {
-        //new VehiclesGUI(mainFrame);
+        new VehiclesGUI(mainFrame);
     }
 
     private void openEnergyWindow() {
