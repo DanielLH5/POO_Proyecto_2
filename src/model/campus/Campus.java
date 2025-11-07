@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Campus implements Serializable {
+    private static final long serialVersionUID = 1L;
     private List<Edificio> edificios;
     private List<Ruta> rutas;
     private Edificio centroPrincipal;

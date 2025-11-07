@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class Vehiculo implements Chargeable, Trackable, Serializable {
-    // ATRIBUTOS COMUNES A TODOS LOS VEHÍCULOS
+    private static final long serialVersionUID = 1L;
     protected String id;
     protected Bateria bateria;
     protected Edificio ubicacionActual;
@@ -138,28 +138,6 @@ public abstract class Vehiculo implements Chargeable, Trackable, Serializable {
         PersistenceManager.guardarFlota(List.of(this));
     }
 
-    // En Vehiculo.java - mejorar el método asignarPedido
-    public void asignarPedido(Pedido pedido) {
-        if (pedido != null && estaDisponible() && !pedido.estaCompletado()) {
-            this.pedidoActual = pedido;
-            cambiarEstado("PREPARACION");
-            registrarEvento("Pedido " + pedido.getId() + " asignado - Origen: " +
-                    pedido.getOrigen().getId() + " -> Destino: " + pedido.getDestino().getId());
-
-            // Actualizar ubicación al origen del pedido si es diferente
-            if (pedido.getOrigen() != null && !pedido.getOrigen().equals(this.ubicacionActual)) {
-                actualizarUbicacion(pedido.getOrigen());
-            }
-
-            // Guardar cambios en persistencia inmediatamente
-            PersistenceManager.guardarFlota(List.of(this));
-        } else {
-            String razon = pedido == null ? "pedido nulo" :
-                    pedido.estaCompletado() ? "pedido ya completado" : "vehículo no disponible";
-            registrarEvento("No se pudo asignar pedido - " + razon);
-        }
-    }
-
     // LIBERAR PEDIDO (para cancelaciones)
     public void liberarPedido() {
         if (pedidoActual != null) {
@@ -169,7 +147,6 @@ public abstract class Vehiculo implements Chargeable, Trackable, Serializable {
         cambiarEstado("DISPONIBLE");
     }
 
-    // REGISTRAR EVENTO EN EL HISTORIAL
     protected void registrarEvento(String evento) {
         String eventoConTimestamp = String.format("[%s] %s",
                 java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")),
@@ -178,16 +155,8 @@ public abstract class Vehiculo implements Chargeable, Trackable, Serializable {
         System.out.println(eventoConTimestamp); // Para ver en consola
     }
 
-    // METODO CONCRETO QUE PUEDEN SOBREESCRIBIR
     public double estimateEnergyCost(double distancia) {
         return distancia * consumoEnergia;
-    }
-
-    // IMPLEMENTACIÓN DE CHARGEABLE
-    @Override
-    public void cargarBateria(double cantidad) {
-        bateria.cargar(cantidad);
-        registrarEvento("Batería cargada: +" + cantidad + " kWh - Nivel: " + getEstadoBateria() + "%");
     }
 
     @Override
@@ -224,15 +193,6 @@ public abstract class Vehiculo implements Chargeable, Trackable, Serializable {
         return bateria.getNivelActual() >= energiaRequerida;
     }
 
-    public boolean realizarViaje(double distancia) {
-        double energiaRequerida = estimateEnergyCost(distancia);
-        boolean exito = bateria.consumir(energiaRequerida);
-        if (exito) {
-            registrarEvento("Viaje realizado: " + distancia + " km - Energía consumida: " + energiaRequerida + " kWh");
-        }
-        return exito;
-    }
-
     public void cambiarEstado(String nuevoEstado) {
         String estadoAnterior = this.estado;
         this.estado = nuevoEstado;
@@ -252,13 +212,97 @@ public abstract class Vehiculo implements Chargeable, Trackable, Serializable {
         this.ubicacionActual = ubicacion;
     }
 
-    // MÉTODOS DE VERIFICACIÓN
     public boolean estaDisponible() {
-        return "DISPONIBLE".equals(estado) && !bateria.necesitaCarga();
+
+        boolean estadoCorrecto = "DISPONIBLE".equals(estado);
+        boolean sinPedido = pedidoActual == null;
+        boolean bateriaSuficiente = !necesitaRecarga();
+
+        return estadoCorrecto && sinPedido && bateriaSuficiente;
     }
 
     public boolean necesitaRecarga() {
-        return bateria.necesitaCarga();
+        return getEstadoBateria() <= 20.0; // 20% o menos necesita recarga
+    }
+
+    public void actualizarEstadoPorBateria() {
+        double bateriaActual = getEstadoBateria();
+
+        if (bateriaActual <= 20.0 && !"EN_CARGA".equals(estado)) {
+            // Si la batería es <= 20% y no está ya en carga, cambiar a EN_CARGA
+            cambiarEstado("EN_CARGA");
+            registrarEvento("Estado cambiado automáticamente a EN_CARGA - Batería: " + bateriaActual + "%");
+        } else if (bateriaActual > 20.0 && "EN_CARGA".equals(estado) && pedidoActual == null) {
+            // Si la batería es > 20% y está en carga pero no tiene pedido, volver a DISPONIBLE
+            cambiarEstado("DISPONIBLE");
+            registrarEvento("Estado cambiado automáticamente a DISPONIBLE - Batería: " + bateriaActual + "%");
+        }
+    }
+
+    @Override
+    public void cargarBateria(double cantidad) {
+        double bateriaAnterior = getEstadoBateria();
+        bateria.cargar(cantidad);
+        double bateriaNueva = getEstadoBateria();
+
+        registrarEvento("Batería cargada: +" + cantidad + " kWh - " +
+                bateriaAnterior + "% → " + bateriaNueva + "%");
+
+        // ACTUALIZAR ESTADO AUTOMÁTICAMENTE DESPUÉS DE CARGAR
+        actualizarEstadoPorBateria();
+    }
+
+    public boolean realizarViaje(double distancia) {
+        double energiaRequerida = estimateEnergyCost(distancia);
+        boolean exito = bateria.consumir(energiaRequerida);
+
+        if (exito) {
+            registrarEvento("Viaje realizado: " + distancia + " km - Energía consumida: " +
+                    energiaRequerida + " kWh - Batería: " + getEstadoBateria() + "%");
+
+            // ACTUALIZAR ESTADO AUTOMÁTICAMENTE DESPUÉS DEL CONSUMO
+            actualizarEstadoPorBateria();
+        } else {
+            registrarEvento("Error en viaje - energía insuficiente: " + energiaRequerida +
+                    " kWh requeridos, " + bateria.getNivelActual() + " kWh disponibles");
+
+            // Si no hay suficiente energía, cambiar a EN_CARGA
+            cambiarEstado("EN_CARGA");
+        }
+
+        return exito;
+    }
+
+    public void asignarPedido(Pedido pedido) {
+        if (pedido != null && !pedido.estaCompletado()) {
+
+            // VERIFICAR BATERÍA ANTES DE ASIGNAR
+            if (necesitaRecarga()) {
+                registrarEvento("No se puede asignar pedido " + pedido.getId() +
+                        " - vehículo necesita recarga (" + getEstadoBateria() + "%)");
+                cambiarEstado("EN_CARGA");
+                return;
+            }
+
+            this.pedidoActual = pedido;
+            cambiarEstado("PREPARACION");
+            registrarEvento("Pedido " + pedido.getId() + " asignado - Origen: " +
+                    pedido.getOrigen().getId() + " -> Destino: " + pedido.getDestino().getId() +
+                    " - Batería: " + getEstadoBateria() + "%");
+
+            // Actualizar ubicación al origen del pedido si es diferente
+            if (pedido.getOrigen() != null && !pedido.getOrigen().equals(this.ubicacionActual)) {
+                actualizarUbicacion(pedido.getOrigen());
+            }
+
+            // Guardar cambios en persistencia inmediatamente
+            PersistenceManager.guardarFlota(List.of(this));
+        } else {
+            String razon = pedido == null ? "pedido nulo" :
+                    pedido.estaCompletado() ? "pedido ya completado" :
+                            "vehículo no disponible (batería: " + getEstadoBateria() + "%)";
+            registrarEvento("No se pudo asignar pedido - " + razon);
+        }
     }
 
     // TO STRING

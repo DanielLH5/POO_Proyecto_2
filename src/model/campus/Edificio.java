@@ -3,6 +3,7 @@ package model.campus;
 import java.io.Serializable;
 
 public class Edificio implements Serializable {
+    private static final long serialVersionUID = 1L;
     private final String id;
     private String nombre;
     private int capacidadVehiculos;

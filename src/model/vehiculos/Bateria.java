@@ -3,6 +3,7 @@ package model.vehiculos;
 import java.io.Serializable;
 
 public class Bateria implements Serializable {
+    private static final long serialVersionUID = 1L;
     private double capacidadTotal;
     private double nivelActual;
     private final double nivelMinimo;

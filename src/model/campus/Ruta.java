@@ -3,6 +3,7 @@ package model.campus;
 import java.io.Serializable;
 
 public class Ruta implements Serializable {
+    private static final long serialVersionUID = 1L;
     private final String id;
     private final Edificio origen;
     private final Edificio destino;

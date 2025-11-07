@@ -139,7 +139,6 @@ public class ManejoEnergiaGUI {
         JButton estimateConsumptionBtn = new JButton("Estimar Consumo");
         JButton lowBatteryAlertBtn = new JButton("Alertas Batería Baja");
         JButton optimizeRoutesBtn = new JButton("Optimizar Rutas");
-        JButton energySettingsBtn = new JButton("Configuración");
 
         controlsPanel.add(chargeSelectedBtn);
         controlsPanel.add(chargeAllBtn);
@@ -148,7 +147,6 @@ public class ManejoEnergiaGUI {
         controlsPanel.add(estimateConsumptionBtn);
         controlsPanel.add(lowBatteryAlertBtn);
         controlsPanel.add(optimizeRoutesBtn);
-        controlsPanel.add(energySettingsBtn);
 
         // Listeners actualizados con funcionalidad real
         chargeSelectedBtn.addActionListener(e -> recargarSeleccionado());
@@ -158,11 +156,74 @@ public class ManejoEnergiaGUI {
         estimateConsumptionBtn.addActionListener(e -> estimarConsumo());
         lowBatteryAlertBtn.addActionListener(e -> mostrarAlertasBateriaBaja());
         optimizeRoutesBtn.addActionListener(e -> optimizarRutasEnergeticamente());
-        energySettingsBtn.addActionListener(e -> configuracionEnergia());
-
         return controlsPanel;
     }
 
+    private void actualizarDesdePersistencia() {
+        this.flota = PersistenceManager.cargarFlota();
+        this.gestorEnergia = new GestorEnergia(flota);
+    }
+
+    private void recargarSeleccionado() {
+        int selectedRow = energyTable.getSelectedRow();
+        if (selectedRow >= 0) {
+            String vehiculoId = (String) energyModel.getValueAt(selectedRow, 0);
+
+            int confirmacion = JOptionPane.showConfirmDialog(
+                    energyDialog,
+                    "¿Recargar completamente el vehículo " + vehiculoId + " al 100%?",
+                    "Confirmar Recarga",
+                    JOptionPane.YES_NO_OPTION
+            );
+
+            if (confirmacion == JOptionPane.YES_OPTION) {
+                boolean exito = gestorEnergia.recargarVehiculo(vehiculoId, 100.0);
+                if (exito) {
+                    // ACTUALIZAR DESDE PERSISTENCIA PARA OBTENER LOS DATOS MÁS RECIENTES
+                    actualizarDesdePersistencia();
+                    actualizarTablaEnergia();
+                    actualizarEstadisticas();
+                    JOptionPane.showMessageDialog(energyDialog,
+                            "✓ Vehículo " + vehiculoId + " recargado al 100%\nLos cambios se han guardado en persistencia.",
+                            "Recarga Exitosa",
+                            JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(energyDialog,
+                            "Error al recargar el vehículo",
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        } else {
+            JOptionPane.showMessageDialog(energyDialog,
+                    "Seleccione un vehículo de la tabla",
+                    "Advertencia", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void recargarTodos() {
+        int confirmacion = JOptionPane.showConfirmDialog(
+                energyDialog,
+                "¿Recargar completamente TODA la flota al 100%?\nEsta acción puede tomar unos segundos.",
+                "Confirmar Recarga Masiva",
+                JOptionPane.YES_NO_OPTION
+        );
+
+        if (confirmacion == JOptionPane.YES_OPTION) {
+            gestorEnergia.recargarTodosCompletamente();
+
+            // ACTUALIZAR DESDE PERSISTENCIA PARA OBTENER LOS DATOS MÁS RECIENTES
+            actualizarDesdePersistencia();
+            actualizarTablaEnergia();
+            actualizarEstadisticas();
+
+            JOptionPane.showMessageDialog(energyDialog,
+                    "Toda la flota ha sido recargada al 100%\nLos cambios se han guardado en persistencia.",
+                    "Recarga Masiva Exitosa",
+                    JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    // ACTUALIZAR EL BOTÓN DE REFRESH EN EL FOOTER
     private void createFooter() {
         JPanel footerPanel = new JPanel(new BorderLayout());
         footerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -170,7 +231,7 @@ public class ManejoEnergiaGUI {
         JLabel statsLabel = new JLabel();
         statsLabel.setName("statsLabel");
 
-        JButton refreshBtn = new JButton("Actualizar");
+        JButton refreshBtn = new JButton("Actualizar desde Persistencia");
         JButton autoMonitorBtn = new JButton("Monitoreo Automático");
 
         JPanel buttonPanel = new JPanel(new FlowLayout());
@@ -182,17 +243,19 @@ public class ManejoEnergiaGUI {
 
         energyDialog.add(footerPanel, BorderLayout.SOUTH);
 
-        // Listeners del footer
+        // LISTENER MEJORADO PARA REFRESH
         refreshBtn.addActionListener(e -> {
+            actualizarDesdePersistencia();
             actualizarTablaEnergia();
             actualizarEstadisticas();
-            JOptionPane.showMessageDialog(energyDialog, "Datos actualizados");
+            JOptionPane.showMessageDialog(energyDialog,
+                    "✓ Datos actualizados desde persistencia\nSe cargaron los últimos cambios guardados.",
+                    "Actualización Exitosa",
+                    JOptionPane.INFORMATION_MESSAGE);
         });
 
         autoMonitorBtn.addActionListener(e -> activarMonitoreoAutomatico());
     }
-
-    // MÉTODOS DE FUNCIONALIDAD IMPLEMENTADOS
 
     private void actualizarTablaEnergia() {
         energyModel.setRowCount(0);
@@ -230,49 +293,6 @@ public class ManejoEnergiaGUI {
                     " Batería promedio: %.1f%% | Vehículos con baja batería: %d | Consumo total: %.1f kWh ",
                     stats.bateriaPromedio, stats.vehiculosBajaBateria, stats.consumoTotal
             ));
-        }
-    }
-
-    private void recargarSeleccionado() {
-        int selectedRow = energyTable.getSelectedRow(); // ← Usar la referencia directa
-        if (selectedRow >= 0) {
-            String vehiculoId = (String) energyModel.getValueAt(selectedRow, 0);
-
-            int confirmacion = JOptionPane.showConfirmDialog(
-                    energyDialog,
-                    "¿Recargar completamente el vehículo " + vehiculoId + "?",
-                    "Confirmar Recarga",
-                    JOptionPane.YES_NO_OPTION
-            );
-
-            if (confirmacion == JOptionPane.YES_OPTION) {
-                boolean exito = gestorEnergia.recargarVehiculo(vehiculoId, 100.0);
-                if (exito) {
-                    actualizarTablaEnergia();
-                    actualizarEstadisticas();
-                    JOptionPane.showMessageDialog(energyDialog, "Vehículo " + vehiculoId + " recargado al 100%");
-                } else {
-                    JOptionPane.showMessageDialog(energyDialog, "Error al recargar el vehículo", "Error", JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        } else {
-            JOptionPane.showMessageDialog(energyDialog, "Seleccione un vehículo de la tabla", "Advertencia", JOptionPane.WARNING_MESSAGE);
-        }
-    }
-
-    private void recargarTodos() {
-        int confirmacion = JOptionPane.showConfirmDialog(
-                energyDialog,
-                "¿Recargar completamente TODA la flota?",
-                "Confirmar Recarga Masiva",
-                JOptionPane.YES_NO_OPTION
-        );
-
-        if (confirmacion == JOptionPane.YES_OPTION) {
-            gestorEnergia.recargarTodosCompletamente();
-            actualizarTablaEnergia();
-            actualizarEstadisticas();
-            JOptionPane.showMessageDialog(energyDialog, "Toda la flota ha sido recargada al 100%");
         }
     }
 
@@ -395,7 +415,7 @@ public class ManejoEnergiaGUI {
         } else {
             StringBuilder alertas = new StringBuilder("=== ALERTAS DE BATERÍA BAJA ===\n\n");
             for (Vehiculo vehiculo : bajaBateria) {
-                alertas.append(String.format("🚨 %s (%s): %.1f%%\n",
+                alertas.append(String.format("%s (%s): %.1f%%\n",
                         vehiculo.getId(), vehiculo.getTipo(), vehiculo.getEstadoBateria()));
             }
             alertas.append("\nSe recomienda recargar estos vehículos.");
@@ -419,7 +439,7 @@ public class ManejoEnergiaGUI {
                     posicion++, vehiculo.getId(), vehiculo.getTipo(), vehiculo.getEstadoBateria()));
         }
 
-        optimizacion.append("\n💡 Priorizar vehículos con mayor batería para rutas largas.");
+        optimizacion.append("\nPriorizar vehículos con mayor batería para rutas largas.");
 
         JOptionPane.showMessageDialog(energyDialog, optimizacion.toString(), "Optimización de Rutas", JOptionPane.INFORMATION_MESSAGE);
     }

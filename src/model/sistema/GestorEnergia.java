@@ -2,6 +2,7 @@ package model.sistema;
 
 import model.vehiculos.Vehiculo;
 import interfaces.Chargeable;
+import Persistencia.PersistenceManager;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -16,18 +17,22 @@ public class GestorEnergia {
         this.politicaRecarga = new PoliticaRecarga();
     }
 
-    // Método para recargar un vehículo específico
+    // MÉTODO MEJORADO PARA RECARGAR VEHÍCULO CON PERSISTENCIA
     public boolean recargarVehiculo(String vehiculoId, double cantidad) {
         Vehiculo vehiculo = buscarVehiculoPorId(vehiculoId);
         if (vehiculo != null && vehiculo instanceof Chargeable) {
             Chargeable chargeable = (Chargeable) vehiculo;
             chargeable.cargarBateria(cantidad);
+
+            // GUARDAR EN PERSISTENCIA INMEDIATAMENTE
+            PersistenceManager.guardarFlota(flota);
+            System.out.println("✓ Vehículo " + vehiculoId + " recargado y guardado en persistencia");
+
             return true;
         }
         return false;
     }
 
-    // Método para recargar todos los vehículos al 100%
     public void recargarTodosCompletamente() {
         for (Vehiculo vehiculo : flota) {
             if (vehiculo instanceof Chargeable) {
@@ -38,9 +43,12 @@ public class GestorEnergia {
                 }
             }
         }
+
+        // GUARDAR EN PERSISTENCIA DESPUÉS DE RECARGAR TODOS
+        PersistenceManager.guardarFlota(flota);
+        System.out.println("✓ Toda la flota recargada y guardada en persistencia");
     }
 
-    // Método para recargar vehículos con batería baja
     public int recargarVehiculosBateriaBaja() {
         int recargados = 0;
         for (Vehiculo vehiculo : flota) {
@@ -53,7 +61,21 @@ public class GestorEnergia {
                 }
             }
         }
+
+        if (recargados > 0) {
+            PersistenceManager.guardarFlota(flota);
+            System.out.println("✓ " + recargados + " vehículos recargados y guardados en persistencia");
+        }
+
         return recargados;
+    }
+
+    public void registrarConsumo(Vehiculo vehiculo, double consumo) {
+        this.consumoTotal += consumo;
+
+        // GUARDAR EN PERSISTENCIA DESPUÉS DE REGISTRAR CONSUMO
+        PersistenceManager.guardarFlota(flota);
+        System.out.println("✓ Consumo registrado y vehículos guardados en persistencia");
     }
 
     // Estimar consumo energético para una ruta
@@ -125,11 +147,6 @@ public class GestorEnergia {
         }
 
         return new EstadisticasEnergia(bateriaPromedio, vehiculosBajaBateria, this.consumoTotal);
-    }
-
-    // Método para actualizar el consumo después de una entrega
-    public void registrarConsumo(Vehiculo vehiculo, double consumo) {
-        this.consumoTotal += consumo;
     }
 
     public PoliticaRecarga getPoliticaRecarga() {
