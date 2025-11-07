@@ -3,7 +3,9 @@ package model.pedidos;
 import model.campus.Edificio;
 import model.vehiculos.Vehiculo;
 
-public class Pedido {
+import java.io.Serializable;
+
+public class Pedido implements Serializable {
     private final String id;
     private final Edificio origen;
     private final Edificio destino;

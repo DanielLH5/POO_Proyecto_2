@@ -2,12 +2,15 @@ package Persistencia;
 
 import model.campus.Campus;
 import model.vehiculos.Vehiculo;
+import model.pedidos.Pedido;
+import model.pedidos.ColaPedidos;
 import java.io.*;
 import java.util.List;
 
 public class PersistenceManager {
     private static final String CAMPUS_FILE = "campus_data.dat";
     private static final String VEHICLES_FILE = "vehicles_data.dat";
+    private static final String PEDIDOS_FILE = "pedidos_data.dat";
     private static final String CONFIG_FILE = "system_config.dat";
 
     // Guardar campus completo
@@ -76,15 +79,70 @@ public class PersistenceManager {
         }
     }
 
-    // Verificar si hay datos guardados
-    public static boolean existenDatosGuardados() {
-        return new File(CAMPUS_FILE).exists() || new File(VEHICLES_FILE).exists();
+    public static void guardarPedidos(List<Pedido> pedidos) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(PEDIDOS_FILE))) {
+            oos.writeObject(pedidos);
+            System.out.println(pedidos.size() + " pedidos guardados exitosamente");
+        } catch (IOException e) {
+            System.err.println("Error guardando pedidos: " + e.getMessage());
+            throw new RuntimeException("Error en persistencia de pedidos", e);
+        }
     }
 
-    // Limpiar todos los datos (para testing/reset)
+    // CARGAR PEDIDOS
+    @SuppressWarnings("unchecked")
+    public static List<Pedido> cargarPedidos() {
+        File file = new File(PEDIDOS_FILE);
+        if (!file.exists()) return null;
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(PEDIDOS_FILE))) {
+            List<Pedido> pedidos = (List<Pedido>) ois.readObject();
+            System.out.println(pedidos.size() + " pedidos cargados exitosamente");
+            return pedidos;
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Error cargando pedidos: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // GUARDAR COLA DE PEDIDOS PENDIENTES
+    public static void guardarColaPedidos(ColaPedidos colaPedidos) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream("cola_pedidos.dat"))) {
+            oos.writeObject(colaPedidos);
+            System.out.println("Cola de pedidos guardada exitosamente");
+        } catch (IOException e) {
+            System.err.println("Error guardando cola de pedidos: " + e.getMessage());
+        }
+    }
+
+    // CARGAR COLA DE PEDIDOS PENDIENTES
+    public static ColaPedidos cargarColaPedidos() {
+        File file = new File("cola_pedidos.dat");
+        if (!file.exists()) return null;
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream("cola_pedidos.dat"))) {
+            ColaPedidos cola = (ColaPedidos) ois.readObject();
+            System.out.println("Cola de pedidos cargada exitosamente");
+            return cola;
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Error cargando cola de pedidos: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // Verificar si hay datos guardados (actualizado)
+    public static boolean existenDatosGuardados() {
+        return new File(CAMPUS_FILE).exists() ||
+                new File(VEHICLES_FILE).exists() ||
+                new File(PEDIDOS_FILE).exists();
+    }
+
+    // Limpiar todos los datos (actualizado)
     public static void limpiarDatos() {
         new File(CAMPUS_FILE).delete();
         new File(VEHICLES_FILE).delete();
+        new File(PEDIDOS_FILE).delete();
+        new File("cola_pedidos.dat").delete();
         new File(CONFIG_FILE).delete();
         System.out.println("Todos los datos persistentes eliminados");
     }

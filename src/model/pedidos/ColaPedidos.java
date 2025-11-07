@@ -1,9 +1,10 @@
 package model.pedidos;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ColaPedidos {
+public class ColaPedidos implements Serializable {
     private List<Pedido> pedidos;
 
     public ColaPedidos() {

@@ -1,6 +1,8 @@
 package model.pedidos;
 
-public enum EstadoPedido {
+import java.io.Serializable;
+
+public enum EstadoPedido implements Serializable {
     RECIBIDO,      // Pedido recibido, esperando asignación
     PREPARACION,   // Vehículo asignado, preparando entrega
     EN_CAMINO,     // Vehículo en movimiento hacia destino
